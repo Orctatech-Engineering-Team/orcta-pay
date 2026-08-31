@@ -1,0 +1,56 @@
+# Orcta Pay datastores — long-lived, deployed once by hand, never by Orcta.
+# docker compose -p orcta-pay-data up -d
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: orcta-pay-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-orcta_pay}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-orcta_pay}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - orcta_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-orcta_pay} -d ${POSTGRES_DB:-orcta_pay}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    container_name: orcta-pay-valkey
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6382:6379"
+    volumes:
+      - valkey_data:/data
+    networks:
+      - orcta_net
+    command:
+      - valkey-server
+      - --appendonly
+      - "no"
+      - --save
+      - "3600 1"
+      - --maxmemory-policy
+      - noeviction
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  valkey_data:
+
+networks:
+  orcta_net:
+    external: true

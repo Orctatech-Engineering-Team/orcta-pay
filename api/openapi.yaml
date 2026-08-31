@@ -1,0 +1,355 @@
+openapi: 3.1.0
+
+info:
+  title: Orcta Pay API
+  version: "1.0.0"
+  description: |
+    Standalone payments service for Orcta products. One webhook per gateway, reference `optd-{product}-{gateway}-{ulid}` passed as the gateway's `reference`/`clientReference`.
+
+    **Money** is whole pesewas in GHS. `amount_pesewas: 1800` means GH₵18.00.
+
+    **Reference** — every charge gets `optd-{product}-{gateway}-{ulid}`. Pass `idempotency_key` to reuse the same reference on retry; omit it to generate a new one.
+
+    **Idempotency** — `POST /v1/charges` with the same `idempotency_key` for the same product returns the existing intent; different `idempotency_key` creates a new one.
+
+  contact:
+    name: Orctatech Engineering
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+
+servers:
+  - url: https://api.pay.orctatech.com
+    description: Production
+  - url: http://localhost:8080
+    description: Local
+
+tags:
+  - name: charges
+    description: Collections.
+  - name: payouts
+    description: Disbursements.
+  - name: webhooks
+    description: Gateway webhooks — one endpoint per gateway, HMAC verified.
+  - name: operations
+    description: Probes and metrics.
+
+security:
+  - bearerAuth: []
+
+paths:
+  /healthz:
+    get:
+      operationId: checkLiveness
+      tags: [operations]
+      summary: Liveness probe
+      security: []
+      responses:
+        "200":
+          description: Process is alive.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, const: ok }
+                required: [status]
+
+  /readyz:
+    get:
+      operationId: checkReadiness
+      tags: [operations]
+      summary: Readiness probe
+      security: []
+      responses:
+        "200":
+          description: Every dependency is reachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Readiness" }
+        "503":
+          description: At least one dependency is unreachable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Readiness" }
+
+  /metrics:
+    get:
+      operationId: getMetrics
+      tags: [operations]
+      summary: Prometheus metrics
+      security: []
+      responses:
+        "200":
+          description: Metrics in Prometheus text format.
+          content:
+            text/plain:
+              schema: { type: string }
+
+  /openapi.yaml:
+    get:
+      operationId: getOpenAPISpec
+      tags: [operations]
+      summary: OpenAPI specification
+      security: []
+      responses:
+        "200":
+          description: The spec as YAML.
+          content:
+            text/yaml:
+              schema: { type: string }
+
+  /docs:
+    get:
+      operationId: getAPIDocs
+      tags: [operations]
+      summary: API reference
+      security: []
+      responses:
+        "200":
+          description: HTML reference.
+          content:
+            text/html:
+              schema: { type: string }
+
+  /v1/charges:
+    post:
+      operationId: createCharge
+      tags: [charges]
+      summary: Initiate a charge
+      description: |
+        Generates `optd-{product}-{gateway}-{ulid}` and initiates via the selected gateway adapter.
+        Returns the gateway reference for subsequent status checks.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateChargeRequest" }
+      responses:
+        "201":
+          description: Charge initiated.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Charge" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+
+  /v1/charges/{ref}/status:
+    get:
+      operationId: getChargeStatus
+      tags: [charges]
+      summary: Get charge status from gateway truth
+      description: Calls the gateway `GetTransactionStatus` for authoritative state, not the cached webhook payload.
+      parameters:
+        - name: ref
+          in: path
+          required: true
+          description: The `optd-...` reference returned by `POST /v1/charges`.
+          schema: { type: string, pattern: '^optd-[a-z0-9_-]+-[a-z]+-[0-9A-Z]{26}$' }
+      responses:
+        "200":
+          description: Current status.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChargeStatus" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /v1/payouts:
+    post:
+      operationId: createPayoutBatch
+      tags: [payouts]
+      summary: Create a payout batch
+      description: |
+        Creates a batch with reservations per recipient. Balance check + reservation creation is one transaction per ADR-035.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreatePayoutRequest" }
+      responses:
+        "201":
+          description: Batch created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PayoutBatch" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409":
+          description: Insufficient funds or reservation conflict.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  /webhooks/hubtel:
+    post:
+      operationId: hubtelWebhook
+      tags: [webhooks]
+      summary: Hubtel webhook
+      description: Verifies HMAC (constant-time), dedups via `webhook_inbox`, then verifies via `GetTransactionStatus` and writes ledger in same Tx.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: Accepted. }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { description: Bad signature. }
+
+  /webhooks/paystack:
+    post:
+      operationId: paystackWebhook
+      tags: [webhooks]
+      summary: Paystack webhook
+      description: Verifies HMAC (constant-time), dedups via `webhook_inbox`, then verifies via `GetTransactionStatus` and writes ledger in same Tx.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: Accepted. }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { description: Bad signature. }
+
+  /webhooks/moolre:
+    post:
+      operationId: moolreWebhook
+      tags: [webhooks]
+      summary: Moolre webhook
+      description: No HMAC — dedups via `webhook_inbox` on `transactionid`, then verifies via `POST /open/transact/status` and writes ledger in same Tx.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        "200": { description: Accepted. }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    BadRequest:
+      description: Malformed body, unknown field, or validation failure.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    Unauthorized:
+      description: Missing, malformed, or expired token.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    NotFound:
+      description: Not found.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    Unavailable:
+      description: Dependency unavailable.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  schemas:
+    ErrorEnvelope:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { $ref: "#/components/schemas/ErrorCode" }
+            message: { type: string }
+          required: [code, message]
+      required: [error]
+
+    ErrorCode:
+      type: string
+      enum: [invalid_request, unauthorized, forbidden, not_found, conflict, rate_limited, internal_error, unavailable]
+
+    Readiness:
+      type: object
+      properties:
+        status: { type: string, enum: [ready, not_ready] }
+        checks:
+          type: object
+          additionalProperties: { type: string, enum: [ok, unavailable] }
+      required: [status, checks]
+
+    CreateChargeRequest:
+      type: object
+      properties:
+        product:
+          type: string
+          description: Product slug, e.g. `orctago` or `pos`.
+          pattern: '^[a-z0-9_-]{1,32}$'
+        amount_pesewas: { type: integer, format: int64, minimum: 1 }
+        currency: { type: string, const: GHS }
+        wallet: { type: string, description: Payer wallet/phone (E.164 or local). }
+        phone: { type: string, description: Alias for wallet. }
+        idempotency_key: { type: string, maxLength: 64 }
+        metadata: { type: object, additionalProperties: true }
+      required: [product, amount_pesewas, currency]
+      additionalProperties: false
+
+    Charge:
+      type: object
+      properties:
+        ref: { type: string, description: "optd-{product}-{gateway}-{ulid}" }
+        product: { type: string }
+        gateway: { type: string, enum: [hubtel, paystack, moolre] }
+        amount_pesewas: { type: integer, format: int64 }
+        currency: { type: string }
+        status: { type: string, enum: [pending, succeeded, failed] }
+        external_ref: { type: string }
+        created_at: { type: string, format: date-time }
+      required: [ref, product, gateway, amount_pesewas, currency, status, created_at]
+
+    ChargeStatus:
+      type: object
+      properties:
+        ref: { type: string }
+        status: { type: string, enum: [pending, succeeded, failed] }
+        gateway: { type: string }
+        amount_pesewas: { type: integer, format: int64 }
+        verified_at: { type: string, format: date-time }
+      required: [ref, status]
+
+    CreatePayoutRequest:
+      type: object
+      properties:
+        product: { type: string }
+        entries:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              recipient: { type: string }
+              amount_pesewas: { type: integer, format: int64, minimum: 1 }
+              currency: { type: string, const: GHS }
+            required: [recipient, amount_pesewas, currency]
+        idempotency_key: { type: string }
+      required: [product, entries]
+      additionalProperties: false
+
+    PayoutBatch:
+      type: object
+      properties:
+        batch_id: { type: string, format: uuid }
+        product: { type: string }
+        status: { type: string, enum: [pending, processing, completed, failed] }
+        total_pesewas: { type: integer, format: int64 }
+        created_at: { type: string, format: date-time }
+      required: [batch_id, product, status, total_pesewas, created_at]

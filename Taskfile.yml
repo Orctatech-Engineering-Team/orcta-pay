@@ -1,0 +1,201 @@
+version: "3"
+
+dotenv: [ ".env" ]
+
+vars:
+  MIGRATIONS_DIR: migrations
+  REDOCLY: "@redocly/cli@2.45.0"
+  SCALAR: "@scalar/cli@2.1.0"
+  COVER_PROFILE: coverage.out
+
+env:
+  DATABASE_URL: '{{.DATABASE_URL | default "postgres://orcta:orcta@localhost:5432/orcta_pay?sslmode=disable"}}'
+  VALKEY_ADDR: '{{.VALKEY_ADDR | default "localhost:6380"}}'
+
+tasks:
+  default:
+    desc: List available tasks
+    cmd: task --list
+    silent: true
+
+  fmt:
+    desc: Format all Go code and group imports
+    cmds:
+      - gofmt -w .
+      - goimports -local github.com/orctatech/orcta-pay -w .
+
+  lint:
+    desc: Run golangci-lint
+    cmd: golangci-lint run ./...
+
+  vet:
+    desc: Run go vet
+    cmd: go vet ./...
+
+  test:
+    desc: Run all tests
+    cmd: go test ./...
+
+  test:race:
+    desc: Run all tests with the race detector (what CI runs)
+    cmd: go test -race ./...
+
+  test:cover:
+    desc: Run tests and open the HTML coverage report
+    cmds:
+      - go test -coverprofile={{.COVER_PROFILE}} ./...
+      - go tool cover -html={{.COVER_PROFILE}}
+
+  build:
+    desc: Build both binaries into bin/
+    cmds:
+      - go build -o bin/api ./cmd/api
+      - go build -o bin/worker ./cmd/worker
+
+  run:
+    desc: Run the API server
+    cmd: go run ./cmd/api
+
+  run:worker:
+    desc: Run the background worker
+    cmd: go run ./cmd/worker
+
+  generate:
+    desc: Regenerate sqlc query code
+    cmd: sqlc generate
+
+  migrate:up:
+    desc: Apply all pending migrations
+    cmd: migrate -path {{.MIGRATIONS_DIR}} -database "$DATABASE_URL" up
+
+  migrate:down:
+    desc: Roll back the most recent migration
+    cmd: migrate -path {{.MIGRATIONS_DIR}} -database "$DATABASE_URL" down 1
+
+  migrate:status:
+    desc: Show the current migration version
+    cmd: migrate -path {{.MIGRATIONS_DIR}} -database "$DATABASE_URL" version
+
+  migrate:new:
+    desc: Create a new migration pair (task migrate:new -- add_payment_intents_table)
+    cmds:
+      - migrate create -ext sql -dir {{.MIGRATIONS_DIR}} -seq {{.CLI_ARGS}}
+      - |
+        f=$(ls -t {{.MIGRATIONS_DIR}}/*.up.sql | head -1)
+        cat > "$f.tmp" <<'HEADER'
+        -- LOCAL so the setting cannot leak into later migrations on this connection.
+        SET LOCAL lock_timeout = '3s';
+
+        HEADER
+        sed -i 's/^        //' "$f.tmp"
+        cat "$f" >> "$f.tmp" && mv "$f.tmp" "$f"
+        echo "seeded $f"
+
+  migrate:lint:
+    desc: Lint migrations for unsafe operations (Squawk)
+    cmd: |
+      shopt -s nullglob
+      files=({{.MIGRATIONS_DIR}}/*.up.sql)
+      if [ ${#files[@]} -eq 0 ]; then
+        echo "no migrations yet — nothing to lint"
+        exit 0
+      fi
+      npx --yes squawk-cli@latest "${files[@]}"
+
+  migrate:force:
+    desc: Force the schema version after a failed migration (task migrate:force -- 3)
+    cmd: migrate -path {{.MIGRATIONS_DIR}} -database "$DATABASE_URL" force {{.CLI_ARGS}}
+
+  dev:up:
+    desc: Start Postgres and Valkey
+    cmd: docker compose up -d
+
+  dev:down:
+    desc: Stop Postgres and Valkey
+    cmd: docker compose down
+
+  dev:reset:
+    desc: Destroy local data volumes and re-migrate from scratch
+    cmds:
+      - docker compose down -v
+      - docker compose up -d
+      - sleep 3
+      - task: migrate:up
+
+  dev:logs:
+    desc: Tail local dependency logs
+    cmd: docker compose logs -f
+
+  api:lint:
+    desc: Validate the OpenAPI spec
+    cmd: npx --yes {{.REDOCLY}} lint
+
+  api:docs:
+    desc: Build the API reference to bin/api-docs.html and open it
+    cmds:
+      - mkdir -p bin
+      - npx --yes {{.REDOCLY}} build-docs api/openapi.yaml -o bin/api-docs.html
+      - cmd: xdg-open bin/api-docs.html 2>/dev/null || open bin/api-docs.html 2>/dev/null || echo "open bin/api-docs.html"
+        ignore_error: true
+
+  api:docs:scalar:
+    desc: Serve the API reference with Scalar
+    cmd: npx --yes {{.SCALAR}} document serve api/openapi.yaml
+
+  api:bundle:
+    desc: Write a single self-contained spec to bin/openapi.json for client codegen
+    cmds:
+      - mkdir -p bin
+      - npx --yes {{.REDOCLY}} bundle api/openapi.yaml --ext json -o bin/openapi.json
+
+  comments:
+    desc: Report files whose comment ratio exceeds 25%
+    silent: true
+    cmds:
+      - |
+        over=0
+        for f in $(find internal cmd -name '*.go' ! -name '*.sql.go' ! -name 'models.go' ! -name 'db.go' ! -name 'doc.go'); do
+          total=$(grep -c . "$f" || true)
+          if [ "$total" -lt 20 ]; then continue; fi
+          cmt=$(grep -cE '^\s*//' "$f" || true)
+          pct=$(( cmt * 100 / total ))
+          if [ "$pct" -gt 25 ]; then
+            printf '%3d%%  %s\n' "$pct" "$f"
+            over=$((over + 1))
+          fi
+        done
+        if [ "$over" -gt 0 ]; then
+          echo "$over file(s) over 25% comments — see AGENTS.md"
+          exit 1
+        fi
+        echo "comment ratios OK"
+
+  check:
+    desc: Format check, vet, lint, comment ratio, and race tests
+    cmds:
+      - task: fmt
+      - task: vet
+      - task: lint
+      - task: comments
+      - task: api:lint
+      - task: test:race
+
+  deploy:validate:
+    desc: Validate the deploy compose files and kamal constraints (what CI checks)
+    cmds:
+      - cp deploy/app/env.example deploy/app/.env
+      - cp deploy/data/env.example deploy/data/.env
+      - defer: rm -f deploy/app/.env deploy/data/.env
+      - DEPLOY_SHA=validate docker compose -f deploy/app/docker-compose.yml --env-file deploy/app/.env config -q
+      - docker compose -f deploy/data/docker-compose.yml --env-file deploy/data/.env config -q
+      - '! grep -qE "^\s*container_name:" deploy/app/docker-compose.yml'
+      - '! grep -qE "^\s*ports:" deploy/app/docker-compose.yml'
+      - grep -qE "^\s{2}web:" deploy/app/docker-compose.yml
+
+  tools:
+    desc: Install the developer tooling this project expects
+    cmds:
+      - go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+      - go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+      - go install -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+      - go install golang.org/x/tools/cmd/goimports@latest

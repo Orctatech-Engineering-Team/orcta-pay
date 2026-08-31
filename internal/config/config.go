@@ -1,0 +1,342 @@
+// Package config parses and validates process configuration from the environment once at startup.
+package config
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+)
+
+const (
+	defaultHTTPPort        = 8080
+	defaultReadTimeout     = 10 * time.Second
+	defaultWriteTimeout    = 30 * time.Second
+	defaultIdleTimeout     = 120 * time.Second
+	defaultShutdownTimeout = 20 * time.Second
+	defaultDBMaxConns      = 20
+	defaultLogLevel        = "info"
+	defaultServiceName     = "orcta-pay"
+	defaultTraceSample     = 1.0
+	defaultHandlerTimeout  = 15 * time.Second
+	defaultJobTimeout      = 5 * time.Minute
+	defaultPendingTimeout  = 5 * time.Minute
+)
+
+// Environment gates production behaviour.
+type Environment string
+
+const (
+	EnvDevelopment Environment = "development"
+	EnvStaging     Environment = "staging"
+	EnvProduction  Environment = "production"
+)
+
+// Valid reports whether e is recognised.
+func (e Environment) Valid() bool {
+	switch e {
+	case EnvDevelopment, EnvStaging, EnvProduction:
+		return true
+	default:
+		return false
+	}
+}
+
+// Config is built once in main and passed down.
+type Config struct {
+	Environment Environment
+	HTTP        HTTPConfig
+	Database    DatabaseConfig
+	Valkey      ValkeyConfig
+	Observ      ObservabilityConfig
+	Payments    PaymentsConfig
+	Worker      WorkerConfig
+}
+
+// HTTPConfig configures the API server.
+type HTTPConfig struct {
+	Port            int
+	ReadTimeout     time.Duration
+	WriteTimeout    time.Duration
+	IdleTimeout     time.Duration
+	ShutdownTimeout time.Duration
+	HandlerTimeout  time.Duration
+}
+
+// Addr returns the listen address.
+func (c HTTPConfig) Addr() string { return ":" + strconv.Itoa(c.Port) }
+
+// DatabaseConfig configures Postgres.
+type DatabaseConfig struct {
+	URL      string
+	MaxConns int32
+}
+
+// ValkeyConfig configures Valkey.
+type ValkeyConfig struct {
+	Addr     string
+	Password string
+	DB       int
+}
+
+// ObservabilityConfig configures logging and tracing.
+type ObservabilityConfig struct {
+	ServiceName      string
+	LogLevel         string
+	OTLPEndpoint     string
+	TraceSampleRatio float64
+}
+
+// TracingEnabled reports whether traces should be exported.
+func (c ObservabilityConfig) TracingEnabled() bool { return c.OTLPEndpoint != "" }
+
+// WorkerConfig configures background jobs.
+type WorkerConfig struct {
+	JobTimeout time.Duration
+}
+
+// PaymentsConfig configures gateways and hubtel/paystack.
+type PaymentsConfig struct {
+	Primary         string
+	PendingTimeout  time.Duration
+	Hubtel          HubtelConfig
+	Paystack        PaystackConfig
+	Moolre          MoolreConfig
+	CallbackBaseURL string
+	WebhookSecrets  WebhookSecrets
+}
+
+// WebhookSecrets holds per-gateway HMAC secrets.
+type WebhookSecrets struct {
+	Hubtel   string
+	Paystack string
+	Moolre   string
+}
+
+// HubtelConfig holds Hubtel credentials.
+type HubtelConfig struct {
+	ClientID        string
+	ClientSecret    string
+	MerchantAccount string
+	BaseURL         string
+}
+
+// Disabled reports whether Hubtel is not configured.
+func (c HubtelConfig) Disabled() bool { return c.ClientID == "" || c.ClientSecret == "" }
+
+// PaystackConfig holds Paystack credentials.
+type PaystackConfig struct {
+	SecretKey string
+	BaseURL   string
+}
+
+// Disabled reports whether Paystack is not configured.
+func (c PaystackConfig) Disabled() bool { return c.SecretKey == "" }
+
+// MoolreConfig holds Moolre credentials.
+type MoolreConfig struct {
+	APIKey  string
+	BaseURL string
+}
+
+// Disabled reports whether Moolre is not configured.
+func (c MoolreConfig) Disabled() bool { return c.APIKey == "" }
+
+// ErrMissingRequired is returned when a required variable is unset.
+var ErrMissingRequired = errors.New("config: required variable not set")
+
+// Load reads, defaults, and validates configuration.
+func Load() (Config, error) {
+	var errs []error
+	env := Environment(stringVar("ORCTA_ENV", string(EnvDevelopment)))
+	port, err := intVar("HTTP_PORT", defaultHTTPPort)
+	errs = append(errs, err)
+	readTimeout, err := durationVar("HTTP_READ_TIMEOUT", defaultReadTimeout)
+	errs = append(errs, err)
+	writeTimeout, err := durationVar("HTTP_WRITE_TIMEOUT", defaultWriteTimeout)
+	errs = append(errs, err)
+	idleTimeout, err := durationVar("HTTP_IDLE_TIMEOUT", defaultIdleTimeout)
+	errs = append(errs, err)
+	shutdownTimeout, err := durationVar("HTTP_SHUTDOWN_TIMEOUT", defaultShutdownTimeout)
+	errs = append(errs, err)
+	handlerTimeout, err := durationVar("HTTP_HANDLER_TIMEOUT", defaultHandlerTimeout)
+	errs = append(errs, err)
+	jobTimeout, err := durationVar("WORKER_JOB_TIMEOUT", defaultJobTimeout)
+	errs = append(errs, err)
+	pendingTimeout, err := durationVar("PAYMENT_PENDING_TIMEOUT", defaultPendingTimeout)
+	errs = append(errs, err)
+	maxConns, err := int32Var("DATABASE_MAX_CONNS", defaultDBMaxConns)
+	errs = append(errs, err)
+	valkeyDB, err := intVar("VALKEY_DB", 0)
+	errs = append(errs, err)
+	sampleRatio, err := floatVar("OTEL_TRACE_SAMPLE_RATIO", defaultTraceSample)
+	errs = append(errs, err)
+
+	cfg := Config{
+		Environment: env,
+		HTTP: HTTPConfig{
+			Port:            port,
+			ReadTimeout:     readTimeout,
+			WriteTimeout:    writeTimeout,
+			IdleTimeout:     idleTimeout,
+			ShutdownTimeout: shutdownTimeout,
+			HandlerTimeout:  handlerTimeout,
+		},
+		Worker: WorkerConfig{JobTimeout: jobTimeout},
+		Payments: PaymentsConfig{
+			PendingTimeout:  pendingTimeout,
+			Primary:         stringVar("PAYMENTS_PRIMARY", "hubtel"),
+			Hubtel:          hubtelConfig(),
+			Paystack:        paystackConfig(),
+			Moolre:          moolreConfig(),
+			CallbackBaseURL: os.Getenv("PAYMENTS_CALLBACK_BASE_URL"),
+			WebhookSecrets: WebhookSecrets{
+				Hubtel:   os.Getenv("HUBTEL_WEBHOOK_SECRET"),
+				Paystack: os.Getenv("PAYSTACK_WEBHOOK_SECRET"),
+				Moolre:   os.Getenv("MOOLRE_WEBHOOK_SECRET"),
+			},
+		},
+		Database: DatabaseConfig{URL: os.Getenv("DATABASE_URL"), MaxConns: maxConns},
+		Valkey: ValkeyConfig{
+			Addr:     stringVar("VALKEY_ADDR", "localhost:6379"),
+			Password: os.Getenv("VALKEY_PASSWORD"),
+			DB:       valkeyDB,
+		},
+		Observ: ObservabilityConfig{
+			ServiceName:      stringVar("OTEL_SERVICE_NAME", defaultServiceName),
+			LogLevel:         stringVar("LOG_LEVEL", defaultLogLevel),
+			OTLPEndpoint:     os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
+			TraceSampleRatio: sampleRatio,
+		},
+	}
+	errs = append(errs, cfg.Validate())
+	if err := errors.Join(errs...); err != nil {
+		return Config{}, err
+	}
+	return cfg, nil
+}
+
+// Validate reports every semantic problem at once.
+func (c Config) Validate() error {
+	var errs []error
+	if !c.Environment.Valid() {
+		errs = append(errs, fmt.Errorf("config: ORCTA_ENV: unknown environment %q", c.Environment))
+	}
+	if c.Database.URL == "" {
+		errs = append(errs, fmt.Errorf("%w: DATABASE_URL", ErrMissingRequired))
+	}
+	if c.HTTP.Port < 1 || c.HTTP.Port > 65535 {
+		errs = append(errs, fmt.Errorf("config: HTTP_PORT: %d out of range", c.HTTP.Port))
+	}
+	if c.Database.MaxConns < 1 {
+		errs = append(errs, fmt.Errorf("config: DATABASE_MAX_CONNS: %d must be at least 1", c.Database.MaxConns))
+	}
+	if c.Valkey.Addr == "" {
+		errs = append(errs, fmt.Errorf("%w: VALKEY_ADDR", ErrMissingRequired))
+	}
+	if !validLogLevel(c.Observ.LogLevel) {
+		errs = append(errs, fmt.Errorf("config: LOG_LEVEL: unknown level %q", c.Observ.LogLevel))
+	}
+	if c.Observ.TraceSampleRatio < 0 || c.Observ.TraceSampleRatio > 1 {
+		errs = append(errs, fmt.Errorf("config: OTEL_TRACE_SAMPLE_RATIO: %v out of range 0-1", c.Observ.TraceSampleRatio))
+	}
+	if c.Environment == EnvProduction && strings.EqualFold(c.Observ.LogLevel, "debug") {
+		errs = append(errs, errors.New("config: LOG_LEVEL: debug not permitted in production"))
+	}
+	if c.Payments.Primary != "" && c.Payments.Primary != "hubtel" && c.Payments.Primary != "paystack" && c.Payments.Primary != "moolre" {
+		errs = append(errs, errors.New("config: PAYMENTS_PRIMARY must be hubtel, paystack, or moolre"))
+	}
+	if c.Payments.PendingTimeout <= 0 {
+		errs = append(errs, errors.New("config: PAYMENT_PENDING_TIMEOUT must be > 0"))
+	}
+	return errors.Join(errs...)
+}
+
+func validLogLevel(name string) bool {
+	switch strings.ToLower(name) {
+	case "debug", "info", "warn", "error":
+		return true
+	default:
+		return false
+	}
+}
+
+func stringVar(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
+func intVar(key string, fallback int) (int, error) {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback, nil
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("config: %s: %w", key, err)
+	}
+	return v, nil
+}
+
+func int32Var(key string, fallback int32) (int32, error) {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback, nil
+	}
+	v, err := strconv.ParseInt(raw, 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("config: %s: %w", key, err)
+	}
+	return int32(v), nil
+}
+
+func floatVar(key string, fallback float64) (float64, error) {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback, nil
+	}
+	v, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return 0, fmt.Errorf("config: %s: %w", key, err)
+	}
+	return v, nil
+}
+
+func durationVar(key string, fallback time.Duration) (time.Duration, error) {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback, nil
+	}
+	v, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("config: %s: %w", key, err)
+	}
+	return v, nil
+}
+
+func hubtelConfig() HubtelConfig {
+	return HubtelConfig{
+		ClientID:        os.Getenv("HUBTEL_CLIENT_ID"),
+		ClientSecret:    os.Getenv("HUBTEL_CLIENT_SECRET"),
+		MerchantAccount: os.Getenv("HUBTEL_MERCHANT_ACCOUNT"),
+		BaseURL:         stringVar("HUBTEL_BASE_URL", "https://payproxyapi.hubtel.com"),
+	}
+}
+
+func paystackConfig() PaystackConfig {
+	return PaystackConfig{
+		SecretKey: os.Getenv("PAYSTACK_SECRET_KEY"),
+		BaseURL:   stringVar("PAYSTACK_BASE_URL", "https://api.paystack.co"),
+	}
+}
+
+func moolreConfig() MoolreConfig {
+	return MoolreConfig{
+		APIKey:  os.Getenv("MOOLRE_API_KEY"),
+		BaseURL: stringVar("MOOLRE_BASE_URL", "https://api.moolre.com"),
+	}
+}

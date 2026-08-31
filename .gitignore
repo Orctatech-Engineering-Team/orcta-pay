@@ -1,0 +1,20 @@
+!*.md
+
+# Build output
+/bin/
+/tmp/
+
+# Local environment
+.env
+.env.local
+
+# Test and coverage artifacts
+coverage.out
+*.test
+*.prof
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
