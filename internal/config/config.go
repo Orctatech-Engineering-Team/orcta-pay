@@ -135,14 +135,26 @@ type PaystackConfig struct {
 // Disabled reports whether Paystack is not configured.
 func (c PaystackConfig) Disabled() bool { return c.SecretKey == "" }
 
-// MoolreConfig holds Moolre credentials.
+// MoolreConfig holds Moolre credentials per the Moolre 2.0 deep dive.
+//
+// Amounts are decimal GHS strings (e.g. "18.00") on the wire, derived from
+// integer pesewas via fmt.Sprintf("%.2f", minor/100). Never send pesewas.
+// Live BaseURL is https://api.moolre.com, sandbox is https://sandbox.moolre.com.
+// Collections authenticate with X-API-USER + X-API-PUBKEY at POST /open/transact/payment.
+// Transfers authenticate with X-API-USER + X-API-KEY at POST /open/transact/transfer
+// and bulk is looped single transfers with distinct externalref per recipient.
+// No webhook HMAC is published; webhook_inbox dedup is the source of truth.
 type MoolreConfig struct {
-	APIKey  string
-	BaseURL string
+	APIUser       string
+	APIKey        string // private key for transfers / status
+	APIPubKey     string // public key for collections
+	AccountNumber string
+	BaseURL       string
 }
 
 // Disabled reports whether Moolre is not configured.
-func (c MoolreConfig) Disabled() bool { return c.APIKey == "" }
+// Log-and-noop when unconfigured so local dev needs no credentials.
+func (c MoolreConfig) Disabled() bool { return c.APIKey == "" && c.APIPubKey == "" }
 
 // ErrMissingRequired is returned when a required variable is unset.
 var ErrMissingRequired = errors.New("config: required variable not set")
@@ -335,8 +347,22 @@ func paystackConfig() PaystackConfig {
 }
 
 func moolreConfig() MoolreConfig {
+	user := os.Getenv("MOOLRE_API_USER")
+	key := os.Getenv("MOOLRE_API_KEY")
+	pub := os.Getenv("MOOLRE_API_PUBKEY")
+	acct := os.Getenv("MOOLRE_ACCOUNT_NUMBER")
+	// Back-compat: single MOOLRE_API_KEY sets all three if dedicated vars are empty.
+	if user == "" && key != "" {
+		user = key
+	}
+	if pub == "" && key != "" {
+		pub = key
+	}
 	return MoolreConfig{
-		APIKey:  os.Getenv("MOOLRE_API_KEY"),
-		BaseURL: stringVar("MOOLRE_BASE_URL", "https://api.moolre.com"),
+		APIUser:       user,
+		APIKey:        key,
+		APIPubKey:     pub,
+		AccountNumber: acct,
+		BaseURL:       stringVar("MOOLRE_BASE_URL", "https://api.moolre.com"),
 	}
 }

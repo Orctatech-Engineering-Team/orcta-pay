@@ -16,7 +16,13 @@ import (
 	"github.com/orctatech/orcta-pay/internal/observability"
 )
 
-// MoolreAdapter implements AggregatorClient for Moolre.
+// MoolreAdapter implements AggregatorClient for Moolre 2.0.
+//
+// Live base URL is https://api.moolre.com, sandbox is https://sandbox.moolre.com.
+// Collections POST /open/transact/payment with X-API-USER + X-API-PUBKEY, field externalref.
+// Transfers POST /open/transact/transfer with X-API-USER + X-API-KEY, field externalref.
+// Amounts are decimal GHS strings ("18.00") derived from pesewas; do not send pesewas.
+// Webhooks have no published HMAC; dedup via webhook_inbox is source of truth.
 type MoolreAdapter struct {
 	cfg         config.MoolreConfig
 	callbackURL string
@@ -32,19 +38,6 @@ func NewMoolreAdapter(cfg config.MoolreConfig, callbackBaseURL string, opts ...M
 	callbackURL := ""
 	if callbackBaseURL != "" {
 		callbackURL = strings.TrimRight(callbackBaseURL, "/") + "/webhooks/moolre"
-	}
-	if cfg.APIKey == "" {
-		a := &MoolreAdapter{cfg: cfg, callbackURL: callbackURL, logger: slog.Default(), client: &http.Client{Timeout: 10 * time.Second}}
-		for _, opt := range opts {
-			opt(a)
-		}
-		if a.client == nil {
-			a.client = &http.Client{Timeout: 10 * time.Second}
-		}
-		if a.logger == nil {
-			a.logger = slog.Default()
-		}
-		return a
 	}
 	a := &MoolreAdapter{
 		cfg:         cfg,
@@ -156,6 +149,30 @@ func moolreAmount(m money.Money) string {
 	return fmt.Sprintf("%.2f", float64(m.MinorUnits())/100)
 }
 
+func (a *MoolreAdapter) user() string {
+	if a.cfg.APIUser != "" {
+		return a.cfg.APIUser
+	}
+	if a.cfg.APIKey != "" {
+		return a.cfg.APIKey
+	}
+	return a.cfg.APIPubKey
+}
+
+func (a *MoolreAdapter) pubKey() string {
+	if a.cfg.APIPubKey != "" {
+		return a.cfg.APIPubKey
+	}
+	return a.cfg.APIKey
+}
+
+func (a *MoolreAdapter) privKey() string {
+	if a.cfg.APIKey != "" {
+		return a.cfg.APIKey
+	}
+	return a.cfg.APIPubKey
+}
+
 // Initiate starts a charge via Moolre Mobile Money collection.
 func (a *MoolreAdapter) Initiate(ctx context.Context, req InitiateRequest) (InitiateResponse, error) {
 	ctx, span := observability.StartSpan(ctx, "gateway.moolre.Initiate")
@@ -173,12 +190,13 @@ func (a *MoolreAdapter) Initiate(ctx context.Context, req InitiateRequest) (Init
 	}
 	channel := "13"
 	payload := moolrePayPayload{
-		Type:        1,
-		Channel:     channel,
-		Currency:    "GHS",
-		Payer:       payer,
-		Amount:      amountStr,
-		ExternalRef: req.Reference,
+		Type:          1,
+		Channel:       channel,
+		Currency:      "GHS",
+		Payer:         payer,
+		Amount:        amountStr,
+		ExternalRef:   req.Reference,
+		AccountNumber: a.cfg.AccountNumber,
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -192,9 +210,8 @@ func (a *MoolreAdapter) Initiate(ctx context.Context, req InitiateRequest) (Init
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+a.cfg.APIKey)
-	httpReq.Header.Set("X-API-USER", a.cfg.APIKey)
-	httpReq.Header.Set("X-API-PUBKEY", a.cfg.APIKey)
+	httpReq.Header.Set("X-API-USER", a.user())
+	httpReq.Header.Set("X-API-PUBKEY", a.pubKey())
 
 	resp, err := a.client.Do(httpReq)
 	if err != nil {
@@ -249,7 +266,7 @@ func (a *MoolreAdapter) Verify(ctx context.Context, reference string) (VerifyRes
 	if a.cfg.Disabled() {
 		return VerifyResult{}, fmt.Errorf("moolre: %w", ErrNotConfigured)
 	}
-	payload := moolreStatusPayload{Type: 1, IDType: 1, ID: reference}
+	payload := moolreStatusPayload{Type: 1, IDType: 1, ID: reference, AccountNumber: a.cfg.AccountNumber}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return VerifyResult{}, fmt.Errorf("moolre: marshal: %w", err)
@@ -262,10 +279,14 @@ func (a *MoolreAdapter) Verify(ctx context.Context, reference string) (VerifyRes
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+a.cfg.APIKey)
-	httpReq.Header.Set("X-API-USER", a.cfg.APIKey)
-	httpReq.Header.Set("X-API-KEY", a.cfg.APIKey)
-	httpReq.Header.Set("X-API-PUBKEY", a.cfg.APIKey)
+	httpReq.Header.Set("X-API-USER", a.user())
+	// Status accepts either key; send both for compatibility.
+	if k := a.privKey(); k != "" {
+		httpReq.Header.Set("X-API-KEY", k)
+	}
+	if pk := a.pubKey(); pk != "" {
+		httpReq.Header.Set("X-API-PUBKEY", pk)
+	}
 
 	resp, err := a.client.Do(httpReq)
 	if err != nil {
@@ -316,18 +337,21 @@ func (a *MoolreAdapter) Payout(ctx context.Context, recipient string, amount mon
 	defer span.End()
 
 	if a.cfg.Disabled() {
+		a.logger.InfoContext(ctx, "moolre not configured, skipping payout", "reference", reference)
+		span.RecordError(ErrNotConfigured)
 		return fmt.Errorf("moolre: %w", ErrNotConfigured)
 	}
 	amountStr := moolreAmount(amount)
 	channel := "1"
 	payload := moolreTransferPayload{
-		Type:        1,
-		Channel:     channel,
-		Currency:    "GHS",
-		Amount:      amountStr,
-		Receiver:    recipient,
-		ExternalRef: reference,
-		Reference:   reference,
+		Type:          1,
+		Channel:       channel,
+		Currency:      "GHS",
+		Amount:        amountStr,
+		Receiver:      recipient,
+		ExternalRef:   reference,
+		Reference:     reference,
+		AccountNumber: a.cfg.AccountNumber,
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -341,9 +365,8 @@ func (a *MoolreAdapter) Payout(ctx context.Context, recipient string, amount mon
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+a.cfg.APIKey)
-	httpReq.Header.Set("X-API-USER", a.cfg.APIKey)
-	httpReq.Header.Set("X-API-KEY", a.cfg.APIKey)
+	httpReq.Header.Set("X-API-USER", a.user())
+	httpReq.Header.Set("X-API-KEY", a.privKey())
 
 	resp, err := a.client.Do(httpReq)
 	if err != nil {
@@ -367,6 +390,40 @@ func (a *MoolreAdapter) Payout(ctx context.Context, recipient string, amount mon
 		return fmt.Errorf("moolre: payout failed: %s", env.Message)
 	}
 	return nil
+}
+
+// BulkPayoutEntry is a single recipient in a bulk disbursement.
+type BulkPayoutEntry struct {
+	Recipient string
+	Amount    money.Money
+	Reference string
+}
+
+// BulkPayoutResult holds per-recipient outcome.
+type BulkPayoutResult struct {
+	Reference string
+	Err       error
+}
+
+// PayoutBulk disburses a batch by looping single transfers with distinct externalref.
+// Moolre has no batch endpoint; dashboard CSV is the alternative. Each line uses
+// a unique externalref which is the idempotency key. Caller should scope
+// references to (vendor_id, batch_date) for idempotent resume per payments-design §7.
+func (a *MoolreAdapter) PayoutBulk(ctx context.Context, entries []BulkPayoutEntry) []BulkPayoutResult {
+	if a.cfg.Disabled() {
+		results := make([]BulkPayoutResult, 0, len(entries))
+		for _, e := range entries {
+			a.logger.InfoContext(ctx, "moolre not configured, skipping bulk payout", "reference", e.Reference)
+			results = append(results, BulkPayoutResult{Reference: e.Reference, Err: fmt.Errorf("moolre: %w", ErrNotConfigured)})
+		}
+		return results
+	}
+	results := make([]BulkPayoutResult, 0, len(entries))
+	for _, e := range entries {
+		err := a.Payout(ctx, e.Recipient, e.Amount, e.Reference)
+		results = append(results, BulkPayoutResult{Reference: e.Reference, Err: err})
+	}
+	return results
 }
 
 func extractMoolreReason(body []byte, status int) string {

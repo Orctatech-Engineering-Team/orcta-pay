@@ -1,0 +1,12 @@
+DROP INDEX IF EXISTS idx_payout_batches_product_batch_date;
+ALTER TABLE payout_reservations DROP COLUMN IF EXISTS gateway;
+ALTER TABLE payout_reservations DROP COLUMN IF EXISTS reference;
+ALTER TABLE payout_reservations DROP COLUMN IF EXISTS recipient;
+ALTER TABLE payout_batches DROP COLUMN IF EXISTS idempotency_key;
+ALTER TABLE payout_batches DROP COLUMN IF EXISTS batch_date;
+ALTER TABLE webhook_inbox DROP CONSTRAINT webhook_inbox_gateway_check;
+ALTER TABLE webhook_inbox ADD CONSTRAINT webhook_inbox_gateway_check CHECK (gateway IN ('hubtel','paystack'));
+ALTER TABLE gateway_events DROP CONSTRAINT gateway_events_gateway_check;
+ALTER TABLE gateway_events ADD CONSTRAINT gateway_events_gateway_check CHECK (gateway IN ('hubtel','paystack'));
+ALTER TABLE payment_intents DROP CONSTRAINT payment_intents_gateway_check;
+ALTER TABLE payment_intents ADD CONSTRAINT payment_intents_gateway_check CHECK (gateway IN ('hubtel','paystack'));

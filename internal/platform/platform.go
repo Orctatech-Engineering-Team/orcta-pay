@@ -45,6 +45,7 @@ func Build(ctx context.Context, cfg config.Config) (*App, error) {
 		observ.Logger.WarnContext(ctx, "valkey not connected, using in-memory fallback", "error", err)
 	}
 	health := valkeystore.NewHealthStore(valkeyClient)
+	locker := valkeystore.NewLocker(valkeyClient)
 	store := postgresstore.NewStore()
 
 	callbackBase := cfg.Payments.CallbackBaseURL
@@ -69,7 +70,7 @@ func Build(ctx context.Context, cfg config.Config) (*App, error) {
 	app := &App{
 		Config:  cfg,
 		Charges: charges.NewService(store, router),
-		Payouts: payouts.NewService(store, router),
+		Payouts: payouts.NewService(store, router, payouts.WithLedger(store), payouts.WithLocker(locker)),
 		Ledger:  ledger.NewService(store),
 		Router:  router,
 		Pool:    pool,
