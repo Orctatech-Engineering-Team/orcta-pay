@@ -27,7 +27,9 @@ WORKDIR /src
 COPY pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY clients/ts/orctapay/package.json clients/ts/orctapay/
 COPY dashboard/package.json dashboard/
-RUN corepack enable && pnpm install --frozen-lockfile
+RUN corepack enable \
+ && corepack prepare pnpm@10.29.1 --activate \
+ && pnpm install --frozen-lockfile
 
 COPY clients/ts/orctapay/ clients/ts/orctapay/
 COPY dashboard/ dashboard/
