@@ -9,8 +9,8 @@ vars:
   COVER_PROFILE: coverage.out
 
 env:
-  DATABASE_URL: '{{.DATABASE_URL | default "postgres://orcta:orcta@localhost:5432/orcta_pay?sslmode=disable"}}'
-  VALKEY_ADDR: '{{.VALKEY_ADDR | default "localhost:6380"}}'
+  DATABASE_URL: '{{.DATABASE_URL | default "postgres://orcta_pay:orcta_pay@localhost:5432/orcta_pay?sslmode=disable"}}'
+  VALKEY_ADDR: '{{.VALKEY_ADDR | default "localhost:6379"}}'
 
 tasks:
   default:

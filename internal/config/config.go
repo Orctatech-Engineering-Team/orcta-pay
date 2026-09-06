@@ -278,6 +278,12 @@ func (c Config) Validate() error {
 	if c.Payments.PendingTimeout <= 0 {
 		errs = append(errs, errors.New("config: PAYMENT_PENDING_TIMEOUT must be > 0"))
 	}
+	// Auth: the v1 API is unauthenticated without an API key.
+	// That is acceptable for local development only — refuse to boot in
+	// production without one.
+	if c.Environment == EnvProduction && c.Auth.APIKey == "" {
+		errs = append(errs, errors.New("config: ORCTA_PAY_API_KEY is required in production"))
+	}
 	return errors.Join(errs...)
 }
 

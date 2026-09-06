@@ -24,7 +24,7 @@ func handleListCharges(app *platform.App) http.HandlerFunc {
 		gateway := r.URL.Query().Get("gateway")
 		status := r.URL.Query().Get("status")
 
-		query := `SELECT ref, product, gateway, amount_pesewas, currency, status, created_at FROM payment_intents WHERE 1=1`
+		query := `SELECT ref, product, gateway, amount_pesewas, currency, status, created_at::text FROM payment_intents WHERE 1=1`
 		args := []any{}
 		idx := 1
 		if product != "" && product != "all" {
@@ -89,7 +89,7 @@ func handleListPayouts(app *platform.App) http.HandlerFunc {
 			return
 		}
 		rows, err := app.Pool.Query(r.Context(),
-			`SELECT id, product, total_pesewas, currency, status, batch_date, created_at FROM payout_batches ORDER BY created_at DESC LIMIT 100`)
+			`SELECT id, product, total_pesewas, currency, status, batch_date::text, created_at::text FROM payout_batches ORDER BY created_at DESC LIMIT 100`)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "internal_error", "query failed")
 			return
@@ -146,7 +146,7 @@ func handleListLedger(app *platform.App) http.HandlerFunc {
 			}
 		}
 		ref := r.URL.Query().Get("ref")
-		query := `SELECT id, kind, ref, amount_pesewas, currency, value_time, booking_time, settlement_time, product, created_at FROM ledger_entries`
+		query := `SELECT id, kind, ref, amount_pesewas, currency, value_time::text, booking_time::text, settlement_time::text, product, created_at::text FROM ledger_entries`
 		args := []any{}
 		if ref != "" {
 			query += ` WHERE ref = $1 ORDER BY booking_time LIMIT $2`
@@ -215,7 +215,7 @@ func handleListWebhooks(app *platform.App) http.HandlerFunc {
 			return
 		}
 		gateway := r.URL.Query().Get("gateway")
-		query := `SELECT aggregator_event_id, gateway, payload, received_at, processed_at FROM webhook_inbox`
+		query := `SELECT aggregator_event_id, gateway, payload, received_at::text, processed_at::text FROM webhook_inbox`
 		args := []any{}
 		if gateway != "" && gateway != "all" {
 			query += ` WHERE gateway = $1 ORDER BY received_at DESC LIMIT 100`

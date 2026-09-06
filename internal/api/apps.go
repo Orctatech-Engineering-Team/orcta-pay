@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -150,7 +151,7 @@ func bearerAuth(app *platform.App) func(http.Handler) http.Handler {
 				return
 			}
 			token := auth[len(prefix):]
-			if token != expected {
+			if subtle.ConstantTimeCompare([]byte(token), []byte(expected)) != 1 {
 				writeError(w, http.StatusUnauthorized, "unauthorized", "invalid token")
 				return
 			}

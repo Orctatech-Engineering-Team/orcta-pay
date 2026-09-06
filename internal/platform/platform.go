@@ -31,6 +31,7 @@ type App struct {
 	Webhooks *webhooks.Service
 	Router   *gateway.ChargerRouter
 	Pool     *pgxpool.Pool
+	Valkey   valkey.Client
 	Observ   *observability.Provider
 }
 
@@ -50,18 +51,27 @@ func Build(ctx context.Context, cfg config.Config) (*App, error) {
 	}
 	health := valkeystore.NewHealthStore(valkeyClient)
 	locker := valkeystore.NewLocker(valkeyClient)
-	var store any
+	var chargeStore charges.IntentStore
+	var payoutStore payouts.ReservationStore
+	var ledgerStore ledger.Store
+	var appStore apps.Store
+	var webhookStore webhooks.Store
 	if pool != nil {
-		store = postgresstore.NewPostgresStore(pool)
+		pgStore := postgresstore.NewPostgresStore(pool)
+		chargeStore = pgStore
+		payoutStore = pgStore
+		ledgerStore = pgStore
+		webhookStore = pgStore
+		appStore = postgresstore.NewPostgresAppsStore(pool)
 	} else {
 		observ.Logger.WarnContext(ctx, "postgres unavailable, using in-memory store — data will NOT persist")
-		store = postgresstore.NewMemoryStore()
+		mem := postgresstore.NewMemoryStore()
+		chargeStore = mem
+		payoutStore = mem
+		ledgerStore = mem
+		webhookStore = mem
+		appStore = mem
 	}
-	// Both stores satisfy the same seams; the services accept the interfaces.
-	chargeStore := store.(charges.IntentStore)
-	payoutStore := store.(payouts.ReservationStore)
-	ledgerStore := store.(ledger.Store)
-	appStore := store.(apps.Store)
 
 	callbackBase := cfg.Payments.CallbackBaseURL
 	hubtelCB := ""
@@ -88,9 +98,10 @@ func Build(ctx context.Context, cfg config.Config) (*App, error) {
 		Payouts:  payouts.NewService(payoutStore, router, payouts.WithLedger(ledgerStore), payouts.WithLocker(locker)),
 		Ledger:   ledger.NewService(ledgerStore),
 		Apps:     apps.NewService(appStore, cfg.Environment),
-		Webhooks: webhooks.NewService(store.(webhooks.Store), router),
+		Webhooks: webhooks.NewService(webhookStore, router),
 		Router:   router,
 		Pool:     pool,
+		Valkey:   valkeyClient,
 		Observ:   observ,
 	}
 	return app, nil
@@ -98,6 +109,9 @@ func Build(ctx context.Context, cfg config.Config) (*App, error) {
 
 // Close releases resources.
 func (a *App) Close() {
+	if a.Valkey != nil {
+		a.Valkey.Close()
+	}
 	if a.Pool != nil {
 		a.Pool.Close()
 	}
@@ -127,7 +141,11 @@ func newValkey(cfg config.ValkeyConfig) (valkey.Client, error) {
 	if cfg.Addr == "" {
 		return nil, fmt.Errorf("valkey addr empty")
 	}
-	client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{cfg.Addr}})
+	client, err := valkey.NewClient(valkey.ClientOption{
+		InitAddress: []string{cfg.Addr},
+		Password:    cfg.Password,
+		SelectDB:    cfg.DB,
+	})
 	if err != nil {
 		return nil, err
 	}
