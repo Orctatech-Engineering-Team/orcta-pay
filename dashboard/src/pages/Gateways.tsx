@@ -37,7 +37,7 @@ export function GatewaysPage() {
   const avgSuccess = rows.length ? rows.reduce((s, r) => s + r.rolling_success_rate, 0) / rows.length : 0;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between" }}>
           <h2 style={{ margin: 0 }}>Gateway health</h2>
@@ -50,6 +50,7 @@ export function GatewaysPage() {
         ) : null}
       </div>
 
+      {/* Stats */}
       <div className="stats-row">
         <div className="stat">
           <span className="stat-label">Eligible gateways</span>
@@ -58,12 +59,12 @@ export function GatewaysPage() {
         </div>
         <div className="stat">
           <span className="stat-label">Circuits open</span>
-          <span className="stat-value">{openCount}</span>
+          <span className="stat-value" style={{ color: openCount > 0 ? "var(--color-bad-ink)" : "var(--color-ok-ink)" }}>{openCount}</span>
           <span className="stat-meta">Half-open {rows.filter((r) => r.circuit_state === "half_open").length} · closed {rows.filter((r) => r.circuit_state === "closed").length}</span>
         </div>
         <div className="stat">
           <span className="stat-label">Avg success rate</span>
-          <span className="stat-value">{(avgSuccess * 100).toFixed(1)}%</span>
+          <span className="stat-value" style={{ color: avgSuccess >= 0.95 ? "var(--color-ok-ink)" : "var(--color-bad-ink)" }}>{(avgSuccess * 100).toFixed(1)}%</span>
           <span className="stat-meta">Rolling window, floor 95%</span>
         </div>
         <div className="stat">
@@ -72,11 +73,12 @@ export function GatewaysPage() {
         </div>
       </div>
 
+      {/* Channels */}
       {[...byChannel.entries()].map(([channel, chRows]) => (
         <div key={channel} className="card" style={{ padding: 0, overflow: "hidden" }}>
-          <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--color-line)", background: "var(--color-surface-soft)" }}>
-            <strong style={{ fontSize: 13 }}>Channel: {channel}</strong>{" "}
-            <span className="muted">, ranked gateways</span>
+          <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--color-line)", background: "var(--color-surface-soft)" }}>
+            <strong style={{ fontSize: 15 }}>Channel: {channel}</strong>{" "}
+            <span className="muted" style={{ fontSize: 14 }}>, ranked gateways</span>
           </div>
           <div style={{ overflowX: "auto" }}>
             <table>
@@ -94,18 +96,19 @@ export function GatewaysPage() {
               </thead>
               <tbody>
                 {chRows.map((r) => (
-                  <tr key={`${r.gateway}-${r.channel}`} style={{ opacity: r.eligible ? 1 : 0.55 }}>
-                    <td><strong>#{r.rank === 99 ? "\u2014" : r.rank}</strong></td>
-                    <td>{r.gateway}</td>
-                    <td>{r.eligible ? "yes" : "no (below floor / circuit open)"}</td>
+                  <tr key={`${r.gateway}-${r.channel}`} style={{ opacity: r.eligible ? 1 : 0.6 }}>
+                    <td><strong style={{ fontSize: 14 }}>#{r.rank === 99 ? "-" : r.rank}</strong></td>
+                    <td style={{ fontWeight: 600, fontSize: 14 }}>{r.gateway}</td>
+                    <td style={{ fontSize: 14 }}>{r.eligible ? "yes" : "no"}</td>
                     <td>
-                      <span style={{ fontWeight: 600 }}>{(r.rolling_success_rate * 100).toFixed(1)}%</span>
-                      <span className="muted"> · {r.rolling_success_rate < 0.95 ? "below floor" : "above floor"}</span>
+                      <span style={{ fontWeight: 700, fontSize: 14, color: r.rolling_success_rate >= 0.95 ? "var(--color-ok-ink)" : "var(--color-bad-ink)" }}>
+                        {(r.rolling_success_rate * 100).toFixed(1)}%
+                      </span>
                     </td>
-                    <td>{r.p95_latency_ms} ms</td>
+                    <td style={{ fontFamily: "var(--font-mono)", fontSize: 14 }}>{r.p95_latency_ms} ms</td>
                     <td><span className={`pill ${r.circuit_state}`}>{r.circuit_state}</span></td>
-                    <td className="mono">{r.cost_bps} bps{r.cost_fixed_pesewas ? ` + ${r.cost_fixed_pesewas}ps` : ""}</td>
-                    <td className="muted">{r.open_since ? new Date(r.open_since).toLocaleString() : "\u2014"}</td>
+                    <td className="mono" style={{ fontSize: 14 }}>{r.cost_bps} bps{r.cost_fixed_pesewas ? ` + ${r.cost_fixed_pesewas}ps` : ""}</td>
+                    <td className="muted" style={{ fontSize: 13 }}>{r.open_since ? new Date(r.open_since).toLocaleString() : "-"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -114,10 +117,12 @@ export function GatewaysPage() {
         </div>
       ))}
 
+      {/* Circuit breaker explanation */}
       <div className="card">
-        <h2>Circuit breaker</h2>
-        <p className="muted" style={{ margin: 0 }}>
-          Consecutive failures open the circuit. Half-open probes after cooldown.
+        <h2 style={{ marginBottom: 8 }}>Circuit breaker</h2>
+        <p style={{ margin: 0, fontSize: 14, color: "var(--color-ink-muted)", lineHeight: 1.6 }}>
+          Consecutive failures open the circuit. Half-open probes after cooldown. 
+          When a circuit opens, traffic fails over to the next-ranked gateway in the channel.
         </p>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { createRouter, createRootRoute, createRoute, redirect } from "@tanstack/react-router";
+import { createRouter, createRootRoute, createRoute } from "@tanstack/react-router";
 import { Layout } from "./components/Layout";
 import { OverviewPage } from "./pages/Overview";
 import { ChargesPage } from "./pages/Charges";
@@ -7,6 +7,8 @@ import { LedgerPage } from "./pages/Ledger";
 import { GatewaysPage } from "./pages/Gateways";
 import { AppsPage } from "./pages/Apps";
 import { WebhooksPage } from "./pages/Webhooks";
+import { SettingsPage } from "./pages/Settings";
+import { NotFoundPage } from "./pages/NotFound";
 
 const rootRoute = createRootRoute({
   component: Layout,
@@ -60,12 +62,16 @@ const webhooksRoute = createRoute({
   component: WebhooksPage,
 });
 
+const settingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings",
+  component: SettingsPage,
+});
+
 const notFoundRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/$splat",
-  beforeLoad: () => {
-    throw redirect({ to: "/" });
-  },
+  component: NotFoundPage,
 });
 
 const routeTree = rootRoute.addChildren([
@@ -77,6 +83,7 @@ const routeTree = rootRoute.addChildren([
   gatewaysRoute,
   appsRoute,
   webhooksRoute,
+  settingsRoute,
   notFoundRoute,
 ]);
 
