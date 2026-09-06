@@ -1,0 +1,11 @@
+{
+  "name": "@orctatech/orcta-pay",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for Orcta Pay — thin client for collections, payouts, and charge status",
+  "license": "MIT",
+  "exports": "./src/index.ts",
+  "publish": {
+    "include": ["src/**/*.ts", "README.md", "LICENSE"],
+    "exclude": ["src/**/*.test.ts"]
+  }
+}

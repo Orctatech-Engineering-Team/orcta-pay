@@ -1,0 +1,49 @@
+{
+  "name": "@orctatech/orcta-pay",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for Orcta Pay — thin client for collections, payouts, and charge status",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist/**/*"
+  ],
+  "keywords": [
+    "orcta",
+    "orcta-pay",
+    "payments",
+    "momo",
+    "payouts",
+    "typescript",
+    "sdk",
+    "zero-dependencies"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Orctatech-Engineering-Team/orcta-pay.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.0"
+  }
+}
