@@ -49,6 +49,6 @@ COPY --from=build /src/migrations /migrations
 COPY --from=dashboard /src/dashboard/dist /usr/local/share/dashboard
 
 USER orcta
-EXPOSE 8080
+EXPOSE 8085
 
 ENTRYPOINT ["/usr/local/bin/api"]
