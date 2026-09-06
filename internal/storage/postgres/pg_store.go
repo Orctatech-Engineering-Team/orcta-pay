@@ -127,10 +127,6 @@ func nullString(s string) pgtype.Text {
 	return pgtype.Text{String: s, Valid: s != ""}
 }
 
-func tsz(t time.Time) pgtype.Timestamptz {
-	return pgtype.Timestamptz{Time: t, Valid: !t.IsZero()}
-}
-
 // CreateIntent persists a charge intent. The UNIQUE (product, idempotency_key)
 // constraint makes concurrent duplicate intents fail loudly — callers check
 // idempotency before create, so this only fires on a race.
