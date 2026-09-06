@@ -24,6 +24,9 @@ func (l *Locker) TryAcquire(ctx context.Context, key string, ttl time.Duration) 
 	}
 	resp := l.client.Do(ctx, l.client.B().Set().Key(key).Value("1").Nx().Px(ttl).Build())
 	if err := resp.Error(); err != nil {
+		if valkey.IsValkeyNil(err) {
+			return false, nil
+		}
 		return false, fmt.Errorf("valkey: set nx: %w", err)
 	}
 	ok, err := resp.AsBool()
