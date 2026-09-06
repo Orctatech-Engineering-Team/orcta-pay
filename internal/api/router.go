@@ -14,8 +14,8 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
-	payapi "github.com/orctatech/orcta-pay/api"
-	"github.com/orctatech/orcta-pay/internal/platform"
+	payapi "github.com/Orctatech-Engineering-Team/orcta-pay/api"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/platform"
 )
 
 // NewRouter builds the chi router.

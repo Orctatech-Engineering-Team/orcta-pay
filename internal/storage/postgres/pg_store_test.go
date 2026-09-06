@@ -10,11 +10,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/orctatech/orcta-pay/internal/charges"
-	"github.com/orctatech/orcta-pay/internal/gateway"
-	"github.com/orctatech/orcta-pay/internal/ledger"
-	"github.com/orctatech/orcta-pay/internal/money"
-	"github.com/orctatech/orcta-pay/internal/payouts"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/charges"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/gateway"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/ledger"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/money"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/payouts"
 )
 
 // newTestStore skips unless TEST_DATABASE_URL points at a migrated database.

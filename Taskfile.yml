@@ -22,7 +22,7 @@ tasks:
     desc: Format all Go code and group imports
     cmds:
       - gofmt -w .
-      - goimports -local github.com/orctatech/orcta-pay -w .
+      - goimports -local github.com/Orctatech-Engineering-Team/orcta-pay -w .
 
   lint:
     desc: Run golangci-lint

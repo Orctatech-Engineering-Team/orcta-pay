@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/orctatech/orcta-pay/internal/platform"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/platform"
 )
 
 func handleListCharges(app *platform.App) http.HandlerFunc {

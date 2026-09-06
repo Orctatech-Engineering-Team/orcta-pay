@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/orctatech/orcta-pay/internal/config"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/config"
 )
 
 // HealthStore reports gateway health for ranking. Implemented by storage/valkey.

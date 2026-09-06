@@ -9,10 +9,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/orctatech/orcta-pay/internal/gateway"
-	"github.com/orctatech/orcta-pay/internal/observability"
-	"github.com/orctatech/orcta-pay/internal/platform"
-	"github.com/orctatech/orcta-pay/internal/webhooks"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/gateway"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/observability"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/platform"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/webhooks"
 )
 
 func handleWebhook(app *platform.App, gatewayName string) http.HandlerFunc {

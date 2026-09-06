@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/orctatech/orcta-pay/internal/money"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/money"
 )
 
 var (

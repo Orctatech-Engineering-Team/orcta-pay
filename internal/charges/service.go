@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/orctatech/orcta-pay/internal/gateway"
-	"github.com/orctatech/orcta-pay/internal/money"
-	"github.com/orctatech/orcta-pay/internal/observability"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/gateway"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/money"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/observability"
 )
 
 // Errors.

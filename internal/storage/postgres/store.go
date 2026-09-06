@@ -7,13 +7,13 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/orctatech/orcta-pay/internal/apps"
-	"github.com/orctatech/orcta-pay/internal/charges"
-	"github.com/orctatech/orcta-pay/internal/gateway"
-	"github.com/orctatech/orcta-pay/internal/ledger"
-	"github.com/orctatech/orcta-pay/internal/money"
-	"github.com/orctatech/orcta-pay/internal/payouts"
-	"github.com/orctatech/orcta-pay/internal/webhooks"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/apps"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/charges"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/gateway"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/ledger"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/money"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/payouts"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/webhooks"
 )
 
 // MemoryStore is an in-memory implementation satisfying multiple domain seams.

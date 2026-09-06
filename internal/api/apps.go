@@ -9,8 +9,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/orctatech/orcta-pay/internal/apps"
-	"github.com/orctatech/orcta-pay/internal/platform"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/apps"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/platform"
 )
 
 func handleCreateApp(app *platform.App) http.HandlerFunc {

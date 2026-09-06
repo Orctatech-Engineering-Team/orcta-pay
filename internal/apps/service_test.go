@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/orctatech/orcta-pay/internal/config"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/config"
 )
 
 type fakeStore struct {

@@ -12,8 +12,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/orctatech/orcta-pay/internal/config"
-	"github.com/orctatech/orcta-pay/internal/observability"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/config"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/observability"
 )
 
 var (

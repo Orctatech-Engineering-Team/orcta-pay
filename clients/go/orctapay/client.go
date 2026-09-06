@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/orctatech/orcta-pay/internal/money"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/money"
 )
 
 // DefaultBaseURL is used for local development.

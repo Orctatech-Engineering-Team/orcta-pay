@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/orctatech/orcta-pay/internal/config"
-	"github.com/orctatech/orcta-pay/internal/platform"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/config"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/platform"
 )
 
 func TestReadyzReportsUnavailableDependencies(t *testing.T) {

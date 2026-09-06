@@ -18,15 +18,15 @@ The client sends `Authorization: Bearer <apiKey>`.
 
 ## Go
 
-Import path: `github.com/orctatech/orcta-pay/clients/go/orctapay`.
+Import path: `github.com/Orctatech-Engineering-Team/orcta-pay/clients/go/orctapay`.
 
 ```go
 import (
     "context"
     "os"
 
-    "github.com/orctatech/orcta-pay/clients/go/orctapay"
-    "github.com/orctatech/orcta-pay/internal/money"
+    "github.com/Orctatech-Engineering-Team/orcta-pay/clients/go/orctapay"
+    "github.com/Orctatech-Engineering-Team/orcta-pay/internal/money"
 )
 
 client := orctapay.NewClient(os.Getenv("ORCTA_PAY_URL"), os.Getenv("ORCTA_PAY_API_KEY"))
@@ -65,7 +65,7 @@ Wiring example for OrctaGo — swap the Hubtel provider for Orcta Pay:
 
 ```go
 // internal/platform/platform.go
-import "github.com/orctatech/orcta-pay/clients/go/orctapay"
+import "github.com/Orctatech-Engineering-Team/orcta-pay/clients/go/orctapay"
 
 payClient := orctapay.NewClient(os.Getenv("ORCTA_PAY_URL"), os.Getenv("ORCTA_PAY_API_KEY"))
 

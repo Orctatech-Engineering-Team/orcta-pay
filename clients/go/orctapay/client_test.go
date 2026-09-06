@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/orctatech/orcta-pay/internal/money"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/money"
 )
 
 func TestCreateChargeSuccess(t *testing.T) {

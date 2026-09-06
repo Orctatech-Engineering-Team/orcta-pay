@@ -1,4 +1,4 @@
-module github.com/orctatech/orcta-pay
+module github.com/Orctatech-Engineering-Team/orcta-pay
 
 go 1.25.0
 

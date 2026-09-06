@@ -8,7 +8,7 @@ import (
 
 	"github.com/valkey-io/valkey-go"
 
-	"github.com/orctatech/orcta-pay/internal/gateway"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/gateway"
 )
 
 // HealthStore tracks rolling success rates and circuit breaker state in Valkey.

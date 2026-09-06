@@ -11,9 +11,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/orctatech/orcta-pay/internal/gateway"
-	"github.com/orctatech/orcta-pay/internal/ledger"
-	"github.com/orctatech/orcta-pay/internal/observability"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/gateway"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/ledger"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/observability"
 )
 
 // Errors.
