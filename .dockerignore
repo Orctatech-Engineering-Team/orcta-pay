@@ -1,0 +1,11 @@
+.git
+.github
+.env
+.env.*
+bin
+coverage.out
+dashboard/dist
+dashboard/node_modules
+clients/ts/orctapay/dist
+clients/ts/orctapay/node_modules
+node_modules
