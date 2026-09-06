@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { Outlet, useRouterState, useNavigate, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@base-ui/react/button";
 import { Toast } from "@base-ui/react/toast";
-import { checkHealth, makeClient } from "../lib/api";
-import { getApiKey, getBaseUrl, getScope, setScope, maskKey } from "../lib/config";
+import { checkHealth, logout, makeClient } from "../lib/api";
+import { getBaseUrl, getScope, setScope } from "../lib/config";
 import { getTheme, toggleTheme, type Theme } from "../lib/theme";
-import { mockApps, type AppRow } from "../lib/mock";
+import type { AppRow } from "../lib/types";
 
 function IconOverview() {
   return <svg className="rail-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>;
@@ -65,7 +65,7 @@ export function Layout() {
     }
   });
   const [theme, setThemeState] = useState<Theme>(() => getTheme());
-  const apiKey = getApiKey();
+  const queryClient = useQueryClient();
   const baseUrl = getBaseUrl();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -79,7 +79,7 @@ export function Layout() {
     queryFn: async () => {
       const client = makeClient();
       const { data: d } = await client.listApps();
-      return ((d as unknown as AppRow[]) ?? mockApps).filter((a) => !a.revoked);
+      return ((d as unknown as AppRow[]) ?? []).filter((a) => !a.revoked);
     },
     staleTime: 60_000,
     retry: 1,
@@ -150,10 +150,14 @@ export function Layout() {
             <span style={{ fontSize: 13, fontWeight: 500, color: "var(--color-ink-muted)" }}>API {healthLabel}</span>
           </div>
           <div className="rail-meta-row">
-            <span className="badge" title={apiKey || "no key"}>{maskKey(apiKey)}</span>
             <Button className="btn ghost rail-settings-btn" onClick={() => void navigate({ to: "/settings" })}>
               Settings
             </Button>
+            <Button className="btn ghost rail-settings-btn" onClick={async () => {
+              await logout();
+              queryClient.clear();
+              window.location.assign("/");
+            }}>Sign out</Button>
           </div>
         </div>
       </aside>

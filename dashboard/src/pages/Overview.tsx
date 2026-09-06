@@ -2,18 +2,18 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@base-ui/react/button";
-import { getApiKey, getBaseUrl } from "../lib/config";
+import { getBaseUrl } from "../lib/config";
 import { formatGHS, formatDate } from "../lib/format";
-import { mockApps, mockCharges, mockGateways, mockLedger, mockPayoutBatches, mockWebhooks } from "../lib/mock";
-import type { AppRow, ChargeRow, GatewayHealthRow, LedgerEntry, PayoutBatchRow, WebhookRow } from "../lib/mock";
+import type { AppRow, ChargeRow, GatewayHealthRow, LedgerEntry, PayoutBatchRow, WebhookRow } from "../lib/types";
 
-function useLive<T>(key: string, path: string, fallback: T) {
+function useLive<T>(key: string, path: string, empty: T) {
   const q = useQuery({
     queryKey: [key],
     queryFn: async () => {
       const baseUrl = getBaseUrl().replace(/\/+$/, "");
       const res = await fetch(`${baseUrl}${path}`, {
-        headers: { Accept: "application/json", Authorization: `Bearer ${getApiKey()}` },
+        credentials: "include",
+        headers: { Accept: "application/json" },
       });
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       return (await res.json()) as T;
@@ -21,7 +21,7 @@ function useLive<T>(key: string, path: string, fallback: T) {
     staleTime: 30_000,
     retry: 1,
   });
-  return { data: (q.data ?? fallback) as T, error: q.error, isLive: !q.error && !!q.data };
+  return { data: (q.data ?? empty) as T, error: q.error, isLive: !q.error && !!q.data };
 }
 
 function statsForCharges(rows: ChargeRow[]) {
@@ -55,14 +55,14 @@ function statsForLedger(entries: LedgerEntry[]) {
 }
 
 export function OverviewPage() {
-  const chargesQ = useLive<ChargeRow[]>("charges-overview", "/v1/charges", mockCharges);
-  const payoutsQ = useLive<PayoutBatchRow[]>("payouts-overview", "/v1/payouts", mockPayoutBatches);
-  const ledgerQ = useLive<LedgerEntry[]>("ledger-overview", "/v1/ledger", mockLedger);
-  const gatewaysQ = useLive<GatewayHealthRow[]>("gateways-overview", "/v1/gateways/health", mockGateways);
-  const appsQ = useLive<AppRow[]>("apps-overview", "/v1/apps", mockApps);
-  const webhooksQ = useLive<WebhookRow[]>("webhooks-overview", "/v1/webhooks", mockWebhooks);
+  const chargesQ = useLive<ChargeRow[]>("charges-overview", "/v1/charges", []);
+  const payoutsQ = useLive<PayoutBatchRow[]>("payouts-overview", "/v1/payouts", []);
+  const ledgerQ = useLive<LedgerEntry[]>("ledger-overview", "/v1/ledger", []);
+  const gatewaysQ = useLive<GatewayHealthRow[]>("gateways-overview", "/v1/gateways/health", []);
+  const appsQ = useLive<AppRow[]>("apps-overview", "/v1/apps", []);
+  const webhooksQ = useLive<WebhookRow[]>("webhooks-overview", "/v1/webhooks", []);
 
-  const showMockBanner = !!(chargesQ.error || payoutsQ.error || ledgerQ.error || gatewaysQ.error || appsQ.error || webhooksQ.error);
+  const showErrorBanner = !!(chargesQ.error || payoutsQ.error || ledgerQ.error || gatewaysQ.error || appsQ.error || webhooksQ.error);
 
   const chargesOverall = useMemo(() => statsForCharges(chargesQ.data), [chargesQ.data]);
   const payoutsOverall = useMemo(() => statsForPayouts(payoutsQ.data), [payoutsQ.data]);
@@ -90,10 +90,10 @@ export function OverviewPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {showMockBanner ? (
+      {showErrorBanner ? (
         <div style={{ background: "var(--color-warn-soft)", border: "1px solid var(--color-warn-line)", padding: "10px 14px", borderRadius: 8, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
           <span className={`dot ${chargesQ.error ? "down" : "checking"}`} />
-          Live API unreachable, showing mock data
+          Some live data could not be loaded. No placeholder financial data is shown.
         </div>
       ) : null}
 

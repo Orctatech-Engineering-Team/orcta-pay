@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@base-ui/react/button";
-import { getApiKey, getBaseUrl } from "../lib/config";
+import { getBaseUrl } from "../lib/config";
 import { formatDate, formatGHS, ageMinutes } from "../lib/format";
-import { mockPayoutBatches, type PayoutBatchRow } from "../lib/mock";
+import type { PayoutBatchRow } from "../lib/types";
 
 export function PayoutsPage() {
   const [selected, setSelected] = useState<PayoutBatchRow | null>(null);
@@ -13,7 +13,8 @@ export function PayoutsPage() {
     queryFn: async () => {
       const baseUrl = getBaseUrl().replace(/\/+$/, "");
       const res = await fetch(`${baseUrl}/v1/payouts`, {
-        headers: { Accept: "application/json", Authorization: `Bearer ${getApiKey()}` },
+        credentials: "include",
+        headers: { Accept: "application/json" },
       });
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       return (await res.json()) as PayoutBatchRow[];
@@ -22,8 +23,7 @@ export function PayoutsPage() {
     retry: 1,
   });
 
-  const batches = data ?? mockPayoutBatches;
-  const showMockBanner = !!error;
+  const batches = data ?? [];
   const totals = useMemo(() => {
     const gross = batches.reduce((s, b) => s + b.gross_pesewas, 0);
     const net = batches.reduce((s, b) => s + b.net_pesewas, 0);
@@ -39,11 +39,11 @@ export function PayoutsPage() {
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between" }}>
           <h2 style={{ margin: 0 }}>Payout batches</h2>
-          <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{isFetching ? "fetching..." : error ? "mock" : "live"}</span>
+          <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{isFetching ? "fetching..." : error ? "error" : "live"}</span>
         </div>
-        {showMockBanner ? (
+        {error ? (
           <div style={{ marginTop: 10, background: "var(--color-warn-soft)", border: "1px solid var(--color-warn-line)", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
-            Live API unreachable, showing mock data
+            Could not load payouts from the API. No placeholder payouts are shown.
           </div>
         ) : null}
       </div>

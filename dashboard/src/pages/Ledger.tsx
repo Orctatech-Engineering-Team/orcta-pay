@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getApiKey, getBaseUrl } from "../lib/config";
+import { getBaseUrl } from "../lib/config";
 import { formatDate, formatGHS } from "../lib/format";
-import { mockLedger, type LedgerEntry } from "../lib/mock";
+import type { LedgerEntry } from "../lib/types";
 
 function sumFor(entries: LedgerEntry[]): { credits: number; debits: number; net: number } {
   let credits = 0;
@@ -26,7 +26,8 @@ export function LedgerPage() {
       if (vendor !== "all") url.searchParams.set("vendor_id", vendor);
       if (kind !== "all") url.searchParams.set("kind", kind);
       const res = await fetch(url.toString(), {
-        headers: { Accept: "application/json", Authorization: `Bearer ${getApiKey()}` },
+        credentials: "include",
+        headers: { Accept: "application/json" },
       });
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       return (await res.json()) as LedgerEntry[];
@@ -35,8 +36,7 @@ export function LedgerPage() {
     retry: 1,
   });
 
-  const source = data ?? mockLedger;
-  const showMockBanner = !!error;
+  const source = data ?? [];
 
   const filtered = useMemo(() => {
     return source.filter((e) => {
@@ -46,7 +46,7 @@ export function LedgerPage() {
     });
   }, [source, vendor, kind]);
 
-  const vendors = useMemo(() => [...new Set(mockLedger.map((e) => e.vendor_id))], []);
+  const vendors = useMemo(() => [...new Set(source.map((e) => e.vendor_id))], [source]);
   const totals = sumFor(filtered);
   const reconciliationOk = totals.net === totals.credits - totals.debits;
 
@@ -55,7 +55,7 @@ export function LedgerPage() {
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between" }}>
           <h2 style={{ margin: 0 }}>Ledger</h2>
-          <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{isFetching ? "fetching..." : error ? "mock" : "live"}</span>
+          <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{isFetching ? "fetching..." : error ? "error" : "live"}</span>
         </div>
         <div className="row" style={{ marginTop: 12 }}>
           <select className="select" value={vendor} onChange={(e) => setVendor(e.target.value)}>
@@ -69,9 +69,9 @@ export function LedgerPage() {
           </select>
           <span className="muted" style={{ fontSize: 14 }}>Showing {filtered.length} entries</span>
         </div>
-        {showMockBanner ? (
+        {error ? (
           <div style={{ marginTop: 10, background: "var(--color-warn-soft)", border: "1px solid var(--color-warn-line)", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
-            Live API unreachable, showing mock data
+            Could not load ledger entries from the API. No placeholder entries are shown.
           </div>
         ) : null}
       </div>

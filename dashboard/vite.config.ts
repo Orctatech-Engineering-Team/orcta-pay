@@ -13,6 +13,10 @@ export default defineConfig(({ mode }) => {
           target,
           changeOrigin: true,
         },
+        "/auth": {
+          target,
+          changeOrigin: true,
+        },
         "/healthz": {
           target,
           changeOrigin: true,

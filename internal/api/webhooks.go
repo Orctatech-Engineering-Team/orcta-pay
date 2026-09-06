@@ -3,6 +3,7 @@ package api
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/hex"
 	"errors"
 	"io"
@@ -78,10 +79,23 @@ func verifyWebhook(app *platform.App, gatewayName string, h http.Header, body []
 		sig = h.Get("X-Paystack-Signature")
 	}
 	if sig != "" {
+		if gatewayName == "paystack" {
+			return verifyPaystackHMAC(secret, body, sig)
+		}
 		return verifyHMAC(secret, body, sig)
 	}
 	// Secret configured but no recognizable signature header: reject.
 	return false
+}
+
+func verifyPaystackHMAC(secret string, body []byte, signature string) bool {
+	if secret == "" || signature == "" {
+		return false
+	}
+	mac := hmac.New(sha512.New, []byte(secret))
+	_, _ = mac.Write(body)
+	expected := hex.EncodeToString(mac.Sum(nil))
+	return hmac.Equal([]byte(signature), []byte(expected))
 }
 
 func webhookSecret(app *platform.App, gateway string) string {

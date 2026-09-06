@@ -9,9 +9,10 @@ import { AppsPage } from "./pages/Apps";
 import { WebhooksPage } from "./pages/Webhooks";
 import { SettingsPage } from "./pages/Settings";
 import { NotFoundPage } from "./pages/NotFound";
+import { AuthGate } from "./components/AuthGate";
 
 const rootRoute = createRootRoute({
-  component: Layout,
+  component: () => <AuthGate><Layout /></AuthGate>,
 });
 
 const indexRoute = createRoute({

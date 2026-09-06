@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -68,5 +69,57 @@ func TestOperationalRoutesRemainPublic(t *testing.T) {
 
 	if res.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", res.Code, http.StatusOK)
+	}
+}
+
+func TestOperatorLoginSessionAndLogout(t *testing.T) {
+	app := &platform.App{Config: config.Config{Auth: config.AuthConfig{APIKey: "operator-secret"}}}
+	router := NewRouter(app)
+
+	login := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(`{"api_key":"operator-secret"}`))
+	login.Header.Set("Content-Type", "application/json")
+	loginRes := httptest.NewRecorder()
+	router.ServeHTTP(loginRes, login)
+	if loginRes.Code != http.StatusOK {
+		t.Fatalf("login status = %d, want %d", loginRes.Code, http.StatusOK)
+	}
+	cookies := loginRes.Result().Cookies()
+	if len(cookies) != 1 || !cookies[0].HttpOnly {
+		t.Fatalf("expected one HttpOnly session cookie, got %+v", cookies)
+	}
+
+	session := httptest.NewRequest(http.MethodGet, "/auth/session", nil)
+	session.AddCookie(cookies[0])
+	sessionRes := httptest.NewRecorder()
+	router.ServeHTTP(sessionRes, session)
+	if sessionRes.Code != http.StatusOK {
+		t.Fatalf("session status = %d, want %d", sessionRes.Code, http.StatusOK)
+	}
+
+	protected := httptest.NewRequest(http.MethodGet, "/v1/charges", nil)
+	protected.AddCookie(cookies[0])
+	protectedRes := httptest.NewRecorder()
+	router.ServeHTTP(protectedRes, protected)
+	if protectedRes.Code == http.StatusUnauthorized {
+		t.Fatal("valid operator session was rejected")
+	}
+
+	logout := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
+	logoutRes := httptest.NewRecorder()
+	router.ServeHTTP(logoutRes, logout)
+	if logoutRes.Code != http.StatusNoContent || logoutRes.Result().Cookies()[0].MaxAge != -1 {
+		t.Fatalf("logout did not clear session cookie")
+	}
+}
+
+func TestOperatorLoginRejectsWrongKey(t *testing.T) {
+	app := &platform.App{Config: config.Config{Auth: config.AuthConfig{APIKey: "operator-secret"}}}
+	router := NewRouter(app)
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(`{"api_key":"wrong"}`))
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+	router.ServeHTTP(res, req)
+	if res.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", res.Code, http.StatusUnauthorized)
 	}
 }

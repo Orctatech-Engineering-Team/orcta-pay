@@ -51,6 +51,9 @@ func NewRouter(app *platform.App) http.Handler {
 		w.Header().Set("Content-Type", "text/html")
 		_, _ = w.Write([]byte(docsHTML))
 	})
+	r.Post("/auth/login", handleLogin(app))
+	r.Get("/auth/session", handleSession(app))
+	r.Post("/auth/logout", handleLogout(app))
 
 	r.Route("/v1", func(r chi.Router) {
 		r.Use(bearerAuth(app))
@@ -106,7 +109,7 @@ func dashboardHandler() http.HandlerFunc {
 	fs := http.FileServer(http.Dir(dir))
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Don't intercept API routes that somehow fell through.
-		if strings.HasPrefix(r.URL.Path, "/v1/") || strings.HasPrefix(r.URL.Path, "/webhooks/") ||
+		if strings.HasPrefix(r.URL.Path, "/v1/") || strings.HasPrefix(r.URL.Path, "/auth/") || strings.HasPrefix(r.URL.Path, "/webhooks/") ||
 			r.URL.Path == "/healthz" || r.URL.Path == "/readyz" || r.URL.Path == "/metrics" ||
 			r.URL.Path == "/openapi.yaml" || r.URL.Path == "/docs" {
 			http.NotFound(w, r)

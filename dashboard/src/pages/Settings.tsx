@@ -3,15 +3,13 @@ import { useNavigate } from "@tanstack/react-router";
 import { Field } from "@base-ui/react/field";
 import { Input } from "@base-ui/react/input";
 import { Button } from "@base-ui/react/button";
-import { getApiKey, getBaseUrl, maskKey, setApiKey, setBaseUrl } from "../lib/config";
-import { settingsSchema } from "../lib/validators";
+import { getBaseUrl, setBaseUrl } from "../lib/config";
 import { getTheme, toggleTheme, type Theme } from "../lib/theme";
 
-type SettingsTab = "general" | "api-keys" | "appearance";
+type SettingsTab = "general" | "appearance";
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: "general", label: "General" },
-  { id: "api-keys", label: "API Keys" },
   { id: "appearance", label: "Appearance" },
 ];
 
@@ -20,15 +18,11 @@ export function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
   const [theme, setThemeState] = useState<Theme>(() => getTheme());
 
-  const [apiKeyValue, setApiKeyValue] = useState(() => getApiKey());
   const [baseUrlValue, setBaseUrlValue] = useState(() => getBaseUrl());
 
   const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
-    const parsed = settingsSchema.safeParse({ apiKey: apiKeyValue.trim(), baseUrl: baseUrlValue.trim() });
-    if (!parsed.success) return;
-    setApiKey(apiKeyValue.trim());
     setBaseUrl(baseUrlValue.trim());
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -92,56 +86,6 @@ export function SettingsPage() {
                 />
                 <span style={{ fontSize: "var(--text-xs)", color: "var(--color-ink-faint)", marginTop: 4, display: "block" }}>
                   The Orcta Pay API endpoint.
-                </span>
-              </Field.Root>
-            </div>
-
-            <div style={{ marginTop: "var(--space-6)", display: "flex", gap: "var(--space-3)" }}>
-              <Button className="btn" onClick={handleSave}>
-                {saved ? "Saved" : "Save changes"}
-              </Button>
-              <Button className="btn ghost" onClick={() => void navigate({ to: "/" })}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "api-keys" && (
-          <div style={{ maxWidth: 560 }}>
-            <h3 style={{ fontSize: "var(--text-lg)", fontWeight: 600, margin: "0 0 var(--space-1)", color: "var(--color-ink-strong)" }}>API Keys</h3>
-            <p style={{ fontSize: "var(--text-sm)", color: "var(--color-ink-muted)", margin: "0 0 var(--space-5)" }}>
-              Manage your API key. Store keys in Vault, not in code.
-            </p>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-              <Field.Root>
-                <Field.Label style={{ display: "block", fontSize: "var(--text-sm)", fontWeight: 600, marginBottom: 6, color: "var(--color-ink)" }}>Current key</Field.Label>
-                <div style={{
-                  padding: "10px var(--space-3)",
-                  background: "var(--color-surface-muted)",
-                  border: "1px solid var(--color-line-faint)",
-                  borderRadius: "var(--radius-sm)",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "var(--text-sm)",
-                  color: "var(--color-ink-muted)",
-                  overflowWrap: "anywhere",
-                }}>
-                  {apiKeyValue ? maskKey(apiKeyValue) : "No key set"}
-                </div>
-              </Field.Root>
-
-              <Field.Root>
-                <Field.Label style={{ display: "block", fontSize: "var(--text-sm)", fontWeight: 600, marginBottom: 6, color: "var(--color-ink)" }}>API key</Field.Label>
-                <Input
-                  className="input"
-                  style={{ width: "100%" }}
-                  placeholder="pay_live_..."
-                  value={apiKeyValue}
-                  onChange={(e) => setApiKeyValue(e.target.value)}
-                />
-                <span style={{ fontSize: "var(--text-xs)", color: "var(--color-ink-faint)", marginTop: 4, display: "block" }}>
-                  Your Orcta Pay API key.
                 </span>
               </Field.Root>
             </div>

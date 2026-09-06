@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getApiKey, getBaseUrl } from "../lib/config";
-import { mockGateways, type GatewayHealthRow } from "../lib/mock";
+import { getBaseUrl } from "../lib/config";
+import type { GatewayHealthRow } from "../lib/types";
 
 export function GatewaysPage() {
   const { data, error, isFetching } = useQuery({
@@ -9,7 +9,8 @@ export function GatewaysPage() {
     queryFn: async () => {
       const baseUrl = getBaseUrl().replace(/\/+$/, "");
       const res = await fetch(`${baseUrl}/v1/gateways/health`, {
-        headers: { Accept: "application/json", Authorization: `Bearer ${getApiKey()}` },
+        credentials: "include",
+        headers: { Accept: "application/json" },
       });
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       return (await res.json()) as GatewayHealthRow[];
@@ -18,8 +19,7 @@ export function GatewaysPage() {
     retry: 1,
   });
 
-  const rows = data ?? mockGateways;
-  const showMockBanner = !!error;
+  const rows = data ?? [];
 
   const byChannel = useMemo(() => {
     const m = new Map<string, typeof rows>();
@@ -41,11 +41,11 @@ export function GatewaysPage() {
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between" }}>
           <h2 style={{ margin: 0 }}>Gateway health</h2>
-          <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{isFetching ? "fetching..." : error ? "mock" : "live"}</span>
+          <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{isFetching ? "fetching..." : error ? "error" : "live"}</span>
         </div>
-        {showMockBanner ? (
+        {error ? (
           <div style={{ marginTop: 10, background: "var(--color-warn-soft)", border: "1px solid var(--color-warn-line)", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
-            Live API unreachable, showing mock data
+            Could not load gateway health from the API. No placeholder health is shown.
           </div>
         ) : null}
       </div>

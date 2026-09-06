@@ -1,7 +1,6 @@
 package api
 
 import (
-	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -132,30 +131,5 @@ func handleRevokeApp(app *platform.App) http.HandlerFunc {
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
-	}
-}
-
-// bearerAuth enforces Authorization: Bearer <token> if a service key is configured.
-func bearerAuth(app *platform.App) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			expected := app.Config.Auth.APIKey
-			if expected == "" {
-				next.ServeHTTP(w, r)
-				return
-			}
-			auth := r.Header.Get("Authorization")
-			const prefix = "Bearer "
-			if len(auth) <= len(prefix) || auth[:len(prefix)] != prefix {
-				writeError(w, http.StatusUnauthorized, "unauthorized", "missing bearer token")
-				return
-			}
-			token := auth[len(prefix):]
-			if subtle.ConstantTimeCompare([]byte(token), []byte(expected)) != 1 {
-				writeError(w, http.StatusUnauthorized, "unauthorized", "invalid token")
-				return
-			}
-			next.ServeHTTP(w, r)
-		})
 	}
 }

@@ -1,11 +1,11 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@base-ui/react/input";
 import { Button } from "@base-ui/react/button";
 import { makeClient } from "../lib/api";
-import { getApiKey, getBaseUrl } from "../lib/config";
+import { getBaseUrl } from "../lib/config";
 import { formatDate, formatGHS } from "../lib/format";
-import { mockCharges, type ChargeRow } from "../lib/mock";
+import type { ChargeRow } from "../lib/types";
 
 function useLiveCharges(params: { q: string; product: string; gateway: string; status: string }) {
   return useQuery({
@@ -18,7 +18,8 @@ function useLiveCharges(params: { q: string; product: string; gateway: string; s
       if (params.status !== "all") url.searchParams.set("status", params.status);
       if (params.q) url.searchParams.set("q", params.q);
       const res = await fetch(url.toString(), {
-        headers: { Accept: "application/json", Authorization: `Bearer ${getApiKey()}` },
+        credentials: "include",
+        headers: { Accept: "application/json" },
       });
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       const data = (await res.json()) as ChargeRow[];
@@ -38,18 +39,7 @@ export function ChargesPage() {
 
   const liveQuery = useLiveCharges({ q, product, gateway, status });
 
-  const mockFiltered = useMemo(() => {
-    return mockCharges.filter((r) => {
-      if (q && !r.ref.toLowerCase().includes(q.toLowerCase())) return false;
-      if (product !== "all" && r.product !== product) return false;
-      if (gateway !== "all" && r.gateway !== gateway) return false;
-      if (status !== "all" && r.status !== status) return false;
-      return true;
-    });
-  }, [q, product, gateway, status]);
-
-  const rows = liveQuery.data ?? mockFiltered;
-  const showMockBanner = !!liveQuery.error;
+  const rows = liveQuery.data ?? [];
   const succeeded = rows.filter((r) => r.status === "succeeded").length;
   const pending = rows.filter((r) => r.status === "pending").length;
   const failed = rows.filter((r) => r.status === "failed").length;
@@ -62,7 +52,7 @@ export function ChargesPage() {
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between" }}>
           <h2 style={{ margin: 0 }}>Charges</h2>
-          <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{liveQuery.isFetching ? "fetching..." : liveQuery.error ? "mock" : "live"}</span>
+          <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{liveQuery.isFetching ? "fetching..." : liveQuery.error ? "error" : "live"}</span>
         </div>
         <div className="row" style={{ marginTop: 12 }}>
           <Input className="input" placeholder="Search by ref..." value={q} onChange={(e) => setQ(e.target.value)} style={{ flex: 1, minWidth: 220 }} />
@@ -84,9 +74,9 @@ export function ChargesPage() {
             <option value="failed">failed</option>
           </select>
         </div>
-        {showMockBanner ? (
+        {liveQuery.error ? (
           <div style={{ marginTop: 10, background: "var(--color-warn-soft)", border: "1px solid var(--color-warn-line)", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
-            Live API unreachable, showing mock data
+            Could not load charges from the API. No placeholder transactions are shown.
           </div>
         ) : null}
       </div>

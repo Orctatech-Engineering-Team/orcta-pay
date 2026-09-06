@@ -217,7 +217,7 @@ func Load() (Config, error) {
 			CallbackBaseURL: os.Getenv("PAYMENTS_CALLBACK_BASE_URL"),
 			WebhookSecrets: WebhookSecrets{
 				Hubtel:   os.Getenv("HUBTEL_WEBHOOK_SECRET"),
-				Paystack: os.Getenv("PAYSTACK_WEBHOOK_SECRET"),
+				Paystack: stringVar("PAYSTACK_WEBHOOK_SECRET", os.Getenv("PAYSTACK_SECRET_KEY")),
 				Moolre:   os.Getenv("MOOLRE_WEBHOOK_SECRET"),
 			},
 		},

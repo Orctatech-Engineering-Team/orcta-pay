@@ -1,12 +1,38 @@
 import { OrctaPay } from "@orctatech/orcta-pay";
-import { getApiKey, getBaseUrl } from "./config";
+import { getBaseUrl } from "./config";
 
 export function makeClient(): OrctaPay {
   return new OrctaPay({
     baseUrl: getBaseUrl(),
-    apiKey: getApiKey(),
+    apiKey: "",
     timeout: 8000,
   });
+}
+
+export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const baseUrl = getBaseUrl().replace(/\/+$/, "");
+  return fetch(`${baseUrl}${path}`, {
+    ...init,
+    credentials: "include",
+    headers: { Accept: "application/json", ...init.headers },
+  });
+}
+
+export async function login(apiKey: string): Promise<void> {
+  const response = await apiFetch("/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ api_key: apiKey }),
+  });
+  if (!response.ok) throw new Error(response.status === 401 ? "Invalid access key" : "Unable to sign in");
+}
+
+export async function logout(): Promise<void> {
+  await apiFetch("/auth/logout", { method: "POST" });
+}
+
+export async function hasSession(): Promise<boolean> {
+  return (await apiFetch("/auth/session")).ok;
 }
 
 export type HealthState = "ok" | "down" | "unknown" | "checking";

@@ -6,7 +6,7 @@ import { Input } from "@base-ui/react/input";
 import { Button } from "@base-ui/react/button";
 import { makeClient } from "../lib/api";
 import { formatDate } from "../lib/format";
-import { mockApps, type AppRow } from "../lib/mock";
+import type { AppRow } from "../lib/types";
 import { showToast } from "../lib/toast";
 
 export function AppsPage() {
@@ -28,8 +28,7 @@ export function AppsPage() {
     retry: 1,
   });
 
-  const apps = data ?? mockApps;
-  const showMockBanner = !!error;
+  const apps = data ?? [];
   const active = apps.filter((a) => !a.revoked).length;
   const revoked = apps.filter((a) => a.revoked).length;
 
@@ -122,12 +121,12 @@ export function AppsPage() {
             Create app
           </Button>
         </div>
-        {showMockBanner ? (
+        {error ? (
           <div style={{ marginTop: 10, background: "var(--color-warn-soft)", border: "1px solid var(--color-warn-line)", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
-            Live API unreachable, showing mock data
+            Could not load apps from the API. No placeholder apps are shown.
           </div>
         ) : null}
-        {isLoading ? <p className="muted" style={{ marginTop: 8 }}>Loading...</p> : <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>{isFetching ? "fetching..." : error ? "mock" : "live"}</span>}
+        {isLoading ? <p className="muted" style={{ marginTop: 8 }}>Loading...</p> : <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>{isFetching ? "fetching..." : error ? "error" : "live"}</span>}
         {errorMsg ? <pre style={{ background: "var(--color-bad-soft)", padding: 10, borderRadius: 8, fontSize: 12, whiteSpace: "pre-wrap", marginTop: 10, border: "1px solid var(--color-bad-line)", overflowWrap: "anywhere" }}>{errorMsg}</pre> : null}
       </div>
 
