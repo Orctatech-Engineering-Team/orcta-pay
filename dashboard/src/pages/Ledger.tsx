@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Select } from "@base-ui/react/select";
 import { getApiKey, getBaseUrl } from "../lib/config";
 import { formatDate, formatGHS } from "../lib/format";
 import { mockLedger, type LedgerEntry } from "../lib/mock";
@@ -61,19 +62,21 @@ export function LedgerPage() {
           visible slice.
         </p>
         <div className="row" style={{ marginTop: 10 }}>
-          <select className="select" value={vendor} onChange={(e) => setVendor(e.target.value)}>
-            <option value="all">All vendors</option>
-            {vendors.map((v) => <option key={v} value={v}>{v}</option>)}
-          </select>
-          <select
-            className="select"
-            value={kind}
-            onChange={(e) => setKind(e.target.value as typeof kind)}
-          >
-            <option value="all">All entry kinds</option>
-            <option value="vendor">vendor</option>
-            <option value="commission">commission</option>
-          </select>
+          <Select.Root value={vendor} onValueChange={(v: unknown) => setVendor(v as string)}>
+            <Select.Trigger className="select"><Select.Value /><Select.Icon>▾</Select.Icon></Select.Trigger>
+            <Select.Portal><Select.Positioner><Select.Popup><Select.List>
+              <Select.Item value="all">All vendors</Select.Item>
+              {vendors.map((v) => <Select.Item key={v} value={v}>{v}</Select.Item>)}
+            </Select.List></Select.Popup></Select.Positioner></Select.Portal>
+          </Select.Root>
+          <Select.Root value={kind} onValueChange={(v: unknown) => setKind(v as typeof kind)}>
+            <Select.Trigger className="select"><Select.Value /><Select.Icon>▾</Select.Icon></Select.Trigger>
+            <Select.Portal><Select.Positioner><Select.Popup><Select.List>
+              <Select.Item value="all">All entry kinds</Select.Item>
+              <Select.Item value="vendor">vendor</Select.Item>
+              <Select.Item value="commission">commission</Select.Item>
+            </Select.List></Select.Popup></Select.Positioner></Select.Portal>
+          </Select.Root>
           <span className="muted">Showing {filtered.length} entries</span>
         </div>
         {showMockBanner ? (

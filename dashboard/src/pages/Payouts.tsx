@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Button } from "@base-ui/react/button";
 import { getApiKey, getBaseUrl } from "../lib/config";
 import { formatDate, formatGHS, ageMinutes } from "../lib/format";
 import { mockPayoutBatches, type PayoutBatchRow } from "../lib/mock";
@@ -76,7 +77,7 @@ export function PayoutsPage() {
         <div className="card">
           <div className="row" style={{ justifyContent: "space-between" }}>
             <h2 style={{ margin: 0 }}>Batch {selected.id} — {selected.batch_date}</h2>
-            <button className="btn ghost" onClick={() => setSelected(null)}>Close</button>
+            <Button className="btn ghost" onClick={() => setSelected(null)}>Close</Button>
           </div>
           <p className="muted">
             Status <span className={`pill ${selected.status}`}>{selected.status}</span> · Gross {formatGHS(selected.gross_pesewas)} · Net {formatGHS(selected.net_pesewas)} · Created {formatDate(selected.created_at)}

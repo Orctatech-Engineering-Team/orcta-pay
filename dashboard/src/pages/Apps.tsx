@@ -1,14 +1,20 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "@tanstack/react-form";
+import { Dialog } from "@base-ui/react/dialog";
+import { Field } from "@base-ui/react/field";
+import { Select } from "@base-ui/react/select";
+import { Input } from "@base-ui/react/input";
+import { Button } from "@base-ui/react/button";
 import { makeClient } from "../lib/api";
 import { formatDate } from "../lib/format";
 import { mockApps, type AppRow } from "../lib/mock";
+import { createAppSchema } from "../lib/validators";
+import { showToast } from "../lib/toast";
 
 export function AppsPage() {
   const qc = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [product, setProduct] = useState("orctago");
   const [newKey, setNewKey] = useState<{ api_key: string; prefix: string; name: string } | null>(null);
   const [rotatedKey, setRotatedKey] = useState<{ api_key: string; id: string } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -19,7 +25,6 @@ export function AppsPage() {
       const client = makeClient();
       const { data: d, error: e } = await client.listApps();
       if (e) throw e;
-      // Normalize to AppRow shape; live App has same fields.
       return (d as unknown as AppRow[]) ?? [];
     },
     staleTime: 30_000,
@@ -29,24 +34,33 @@ export function AppsPage() {
   const apps = data ?? mockApps;
   const showMockBanner = !!error;
 
-  const createMut = useMutation({
-    mutationFn: async (req: { name: string; product: string }) => {
+  const form = useForm({
+    defaultValues: { name: "", product: "orctago" as string },
+    onSubmit: async ({ value }) => {
+      const parsed = createAppSchema.safeParse(value);
+      if (!parsed.success) {
+        setErrorMsg(parsed.error.issues.map((i) => i.message).join(", "));
+        return;
+      }
+      // keep Result<{data,error}> handling — no throw, check error
       const client = makeClient();
-      const { data: d, error: e } = await client.createApp(req);
-      if (e) throw e;
-      return d;
-    },
-    onSuccess: (d) => {
+      const { data: d, error: e } = await client.createApp(parsed.data);
+      if (e) {
+        setErrorMsg(e.message);
+        showToast(e.message, { type: "error" });
+        return;
+      }
       if (d) {
         setNewKey({ api_key: d.api_key, prefix: d.prefix, name: d.name });
         setCreateOpen(false);
-        setName("");
+        form.reset();
         void qc.invalidateQueries({ queryKey: ["apps"] });
+        showToast("App created", { type: "success" });
       }
     },
-    onError: (e: unknown) => setErrorMsg(e instanceof Error ? e.message : String(e)),
   });
 
+  // Keep mutations for rotate/revoke with same Result handling
   const rotateMut = useMutation({
     mutationFn: async (appId: string) => {
       const client = makeClient();
@@ -58,9 +72,14 @@ export function AppsPage() {
       if (res?.data) {
         setRotatedKey({ api_key: res.data.api_key, id: res.appId });
         void qc.invalidateQueries({ queryKey: ["apps"] });
+        showToast("Key rotated — copy now", { type: "success" });
       }
     },
-    onError: (e: unknown) => setErrorMsg(e instanceof Error ? e.message : String(e)),
+    onError: (e: unknown) => {
+      const msg = e instanceof Error ? e.message : String(e);
+      setErrorMsg(msg);
+      showToast(msg, { type: "error" });
+    },
   });
 
   const revokeMut = useMutation({
@@ -70,15 +89,21 @@ export function AppsPage() {
       if (e) throw e;
       return appId;
     },
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["apps"] }),
-    onError: (e: unknown) => setErrorMsg(e instanceof Error ? e.message : String(e)),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["apps"] });
+      showToast("App revoked", { type: "success" });
+    },
+    onError: (e: unknown) => {
+      const msg = e instanceof Error ? e.message : String(e);
+      setErrorMsg(msg);
+      showToast(msg, { type: "error" });
+    },
   });
 
   const copy = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
     } catch {
-      // fallback
       const el = document.createElement("textarea");
       el.value = text;
       document.body.appendChild(el);
@@ -86,6 +111,7 @@ export function AppsPage() {
       document.execCommand("copy");
       document.body.removeChild(el);
     }
+    showToast("API key copied", { type: "success" });
   };
 
   return (
@@ -99,7 +125,9 @@ export function AppsPage() {
               <code>secret/orcta/orcta-pay/keys/{"{product}"}</code> and rendered to <code>ORCTA_PAY_API_KEY</code>.
             </p>
           </div>
-          <button className="btn" onClick={() => { setCreateOpen(true); setErrorMsg(null); }}>Create app</button>
+          <Button className="btn" onClick={() => { setCreateOpen(true); setErrorMsg(null); }}>
+            Create app
+          </Button>
         </div>
         {showMockBanner ? (
           <div style={{ marginTop: 10, background: "#fefce8", border: "1px solid #fde68a", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
@@ -116,17 +144,21 @@ export function AppsPage() {
           <p className="muted">This key for <strong>{newKey.name}</strong> will not be shown again. Store it in Vault.</p>
           <div style={{ background: "#0f172a", color: "#e2e8f0", padding: 10, borderRadius: 8, fontSize: 13, marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
             <code style={{ wordBreak: "break-all" }}>{newKey.api_key}</code>
-            <button className="btn secondary" style={{ flexShrink: 0 }} onClick={() => void copy(newKey.api_key)}>Copy</button>
+            <Button className="btn secondary" style={{ flexShrink: 0 }} onClick={() => void copy(newKey.api_key)}>
+              Copy
+            </Button>
           </div>
           <p className="muted" style={{ marginTop: 6 }}>Prefix: <code>{newKey.prefix}</code></p>
           <div style={{ background: "#f1f5f9", padding: 10, borderRadius: 8, fontSize: 12, marginTop: 10 }}>
             <strong>Use it in your service:</strong>
             <pre style={{ margin: "6px 0 0", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{`pnpm add @orctatech/orcta-pay
 ORCTA_PAY_API_KEY=${newKey.api_key}
-# Vault: secret/orcta/orcta-pay/keys/${product}
+# Vault: secret/orcta/orcta-pay/keys/${newKey.name}
 import { OrctaPay } from "@orctatech/orcta-pay";
 const pay = new OrctaPay({ apiKey: process.env.ORCTA_PAY_API_KEY! });`}</pre>
-            <button className="btn ghost" style={{ marginTop: 8 }} onClick={() => setNewKey(null)}>Dismiss</button>
+            <Button className="btn ghost" style={{ marginTop: 8 }} onClick={() => setNewKey(null)}>
+              Dismiss
+            </Button>
           </div>
         </div>
       ) : null}
@@ -136,12 +168,16 @@ const pay = new OrctaPay({ apiKey: process.env.ORCTA_PAY_API_KEY! });`}</pre>
           <h2 style={{ margin: 0 }}>Rotated key — copy now, shown once</h2>
           <div style={{ background: "#0f172a", color: "#e2e8f0", padding: 10, borderRadius: 8, fontSize: 13, marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
             <code style={{ wordBreak: "break-all" }}>{rotatedKey.api_key}</code>
-            <button className="btn secondary" style={{ flexShrink: 0 }} onClick={() => void copy(rotatedKey.api_key)}>Copy</button>
+            <Button className="btn secondary" style={{ flexShrink: 0 }} onClick={() => void copy(rotatedKey.api_key)}>
+              Copy
+            </Button>
           </div>
           <div style={{ background: "#f1f5f9", padding: 10, borderRadius: 8, fontSize: 12, marginTop: 10 }}>
             <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{`ORCTA_PAY_API_KEY=${rotatedKey.api_key}`}</pre>
           </div>
-          <button className="btn ghost" style={{ marginTop: 8 }} onClick={() => setRotatedKey(null)}>Dismiss</button>
+          <Button className="btn ghost" style={{ marginTop: 8 }} onClick={() => setRotatedKey(null)}>
+            Dismiss
+          </Button>
         </div>
       ) : null}
 
@@ -170,22 +206,22 @@ const pay = new OrctaPay({ apiKey: process.env.ORCTA_PAY_API_KEY! });`}</pre>
                   <td>{a.revoked ? <span className="pill failed">revoked</span> : <span className="pill succeeded">active</span>}</td>
                   <td>
                     <div className="row" style={{ gap: 6 }}>
-                      <button
+                      <Button
                         className="btn ghost"
                         style={{ padding: "4px 8px", fontSize: 12 }}
                         disabled={a.revoked || rotateMut.isPending}
                         onClick={() => { setErrorMsg(null); void rotateMut.mutateAsync(a.id); }}
                       >
                         {rotateMut.isPending ? "Rotating…" : "Rotate"}
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         className="btn ghost"
                         style={{ padding: "4px 8px", fontSize: 12 }}
                         disabled={a.revoked || revokeMut.isPending}
                         onClick={() => { if (confirm(`Revoke ${a.name}?`)) { setErrorMsg(null); void revokeMut.mutateAsync(a.id); } }}
                       >
                         Revoke
-                      </button>
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -196,38 +232,98 @@ const pay = new OrctaPay({ apiKey: process.env.ORCTA_PAY_API_KEY! });`}</pre>
         </div>
       </div>
 
-      {createOpen ? (
-        <div className="modal-backdrop" onClick={() => setCreateOpen(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2 style={{ marginTop: 0 }}>Create app</h2>
+      <Dialog.Root open={createOpen} onOpenChange={(o: boolean) => setCreateOpen(o)}>
+        <Dialog.Portal>
+          <Dialog.Backdrop className="modal-backdrop" />
+          <Dialog.Popup className="modal" style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", maxHeight: "90vh", overflow: "auto" }}>
+            <Dialog.Title style={{ marginTop: 0, fontSize: 16, fontWeight: 700 }}>Create app</Dialog.Title>
             <p className="muted" style={{ marginTop: 4 }}>
               An app is a per-service API key. Name it after the service (<code>orctago</code>, <code>pos</code>). The key is shown once.
             </p>
-            <label style={{ display: "block", marginTop: 12, fontSize: 13, fontWeight: 600 }}>Name</label>
-            <input className="input" style={{ width: "100%", marginTop: 6 }} placeholder="orctago" value={name} onChange={(e) => setName(e.target.value)} />
-            <label style={{ display: "block", marginTop: 12, fontSize: 13, fontWeight: 600 }}>Product</label>
-            <select className="select" style={{ width: "100%", marginTop: 6 }} value={product} onChange={(e) => setProduct(e.target.value)}>
-              <option value="orctago">orctago</option>
-              <option value="pos">pos</option>
-            </select>
-            <div className="row" style={{ marginTop: 14, justifyContent: "flex-end" }}>
-              <button className="btn ghost" onClick={() => setCreateOpen(false)}>Cancel</button>
-              <button
-                className="btn"
-                disabled={!name.trim() || createMut.isPending}
-                onClick={() => void createMut.mutateAsync({ name: name.trim(), product })}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void form.handleSubmit();
+              }}
+            >
+              <form.Field
+                name="name"
+                validators={{
+                  onChange: ({ value }: { value: string }) => {
+                    const r = createAppSchema.shape.name.safeParse(value);
+                    return r.success ? undefined : r.error.issues[0]?.message;
+                  },
+                }}
               >
-                {createMut.isPending ? "Creating…" : "Create"}
-              </button>
-            </div>
-            {createMut.isError ? (
-              <pre style={{ background: "#fef2f2", padding: 8, borderRadius: 8, fontSize: 12, whiteSpace: "pre-wrap", marginTop: 10 }}>
-                {String((createMut.error as Error).message || createMut.error)}
-              </pre>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
+                {(field) => (
+                  <Field.Root style={{ marginTop: 12 }}>
+                    <Field.Label style={{ display: "block", fontSize: 13, fontWeight: 600 }}>Name</Field.Label>
+                    <Input
+                      className="input"
+                      style={{ width: "100%", marginTop: 6 }}
+                      placeholder="orctago"
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value)}
+                      onBlur={field.handleBlur}
+                    />
+                    {field.state.meta.isTouched && field.state.meta.errors.length ? (
+                      <Field.Error style={{ color: "#dc2626", fontSize: 12, marginTop: 4 }}>{String(field.state.meta.errors[0])}</Field.Error>
+                    ) : null}
+                  </Field.Root>
+                )}
+              </form.Field>
+
+              <form.Field
+                name="product"
+                validators={{
+                  onChange: ({ value }: { value: string }) => {
+                    const r = createAppSchema.shape.product.safeParse(value);
+                    return r.success ? undefined : r.error.issues[0]?.message;
+                  },
+                }}
+              >
+                {(field) => (
+                  <Field.Root style={{ marginTop: 12 }}>
+                    <Field.Label style={{ display: "block", fontSize: 13, fontWeight: 600 }}>Product</Field.Label>
+                    <Select.Root value={field.state.value} onValueChange={(v: unknown) => field.handleChange(v as string)}>
+                      <Select.Trigger className="select" style={{ width: "100%", marginTop: 6 }}>
+                        <Select.Value />
+                        <Select.Icon>▾</Select.Icon>
+                      </Select.Trigger>
+                      <Select.Portal>
+                        <Select.Positioner>
+                          <Select.Popup>
+                            <Select.List>
+                              <Select.Item value="orctago">orctago</Select.Item>
+                              <Select.Item value="pos">pos</Select.Item>
+                            </Select.List>
+                          </Select.Popup>
+                        </Select.Positioner>
+                      </Select.Portal>
+                    </Select.Root>
+                    {field.state.meta.isTouched && field.state.meta.errors.length ? (
+                      <Field.Error style={{ color: "#dc2626", fontSize: 12, marginTop: 4 }}>{String(field.state.meta.errors[0])}</Field.Error>
+                    ) : null}
+                  </Field.Root>
+                )}
+              </form.Field>
+
+              <div className="row" style={{ marginTop: 14, justifyContent: "flex-end" }}>
+                <Button type="button" className="btn ghost" onClick={() => setCreateOpen(false)}>
+                  Cancel
+                </Button>
+                <form.Subscribe selector={(s) => [s.canSubmit, s.isSubmitting]}>
+                  {([canSubmit, isSubmitting]) => (
+                    <Button type="submit" className="btn" disabled={!canSubmit || Boolean(isSubmitting)}>
+                      {isSubmitting ? "Creating…" : "Create"}
+                    </Button>
+                  )}
+                </form.Subscribe>
+              </div>
+            </form>
+          </Dialog.Popup>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 }

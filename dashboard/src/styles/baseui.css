@@ -1,0 +1,116 @@
+/* Base UI unstyled — minimal focus ring and dialog styles */
+[data-base-ui-focus-visible] {
+  outline: 2px solid #0ea5e9;
+  outline-offset: 2px;
+}
+
+/* Dialog */
+[data-base-ui-dialog-backdrop] {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(2px);
+}
+[data-base-ui-dialog-popup] {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  width: 100%;
+  max-width: 520px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.2);
+}
+
+/* Field error */
+[data-base-ui-field-error] {
+  color: #dc2626;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+/* Toast viewport */
+[data-base-ui-toast-viewport] {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 50;
+  pointer-events: none;
+}
+[data-base-ui-toast-root] {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+  pointer-events: auto;
+  min-width: 260px;
+  max-width: 360px;
+}
+[data-base-ui-toast-root][data-type="success"] {
+  background: #065f46;
+}
+[data-base-ui-toast-root][data-type="error"] {
+  background: #7f1d1d;
+}
+
+/* Tabs */
+[data-base-ui-tabs-list] {
+  display: flex;
+  gap: 4px;
+}
+[data-base-ui-tabs-tab] {
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #cbd5e1;
+  cursor: pointer;
+}
+[data-base-ui-tabs-tab][data-active] {
+  background: #1e293b;
+  color: #fff;
+}
+[data-base-ui-tabs-tab]:hover {
+  background: #1e293b;
+}
+
+/* Select */
+[data-base-ui-select-trigger] {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: #fff;
+  font-size: 13px;
+  min-width: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+[data-base-ui-select-popup] {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+  padding: 4px;
+  min-width: 180px;
+}
+[data-base-ui-select-item] {
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+[data-base-ui-select-item][data-highlighted] {
+  background: #f1f5f9;
+}
+[data-base-ui-select-item][data-selected] {
+  background: #e0f2fe;
+  font-weight: 600;
+}

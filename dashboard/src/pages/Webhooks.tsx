@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Select } from "@base-ui/react/select";
 import { getApiKey, getBaseUrl } from "../lib/config";
 import { formatDate } from "../lib/format";
 import { mockWebhooks, type WebhookRow } from "../lib/mock";
@@ -49,12 +50,15 @@ export function WebhooksPage() {
           anomalous — duplicates return 200 without reprocessing.
         </p>
         <div className="row" style={{ marginTop: 10 }}>
-          <select className="select" value={gateway} onChange={(e) => setGateway(e.target.value)}>
-            <option value="all">All gateways</option>
-            <option value="hubtel">hubtel</option>
-            <option value="paystack">paystack</option>
-            <option value="moolre">moolre</option>
-          </select>
+          <Select.Root value={gateway} onValueChange={(v: unknown) => setGateway(v as string)}>
+            <Select.Trigger className="select"><Select.Value /><Select.Icon>▾</Select.Icon></Select.Trigger>
+            <Select.Portal><Select.Positioner><Select.Popup><Select.List>
+              <Select.Item value="all">All gateways</Select.Item>
+              <Select.Item value="hubtel">hubtel</Select.Item>
+              <Select.Item value="paystack">paystack</Select.Item>
+              <Select.Item value="moolre">moolre</Select.Item>
+            </Select.List></Select.Popup></Select.Positioner></Select.Portal>
+          </Select.Root>
           <span className="muted">Dedup: <code>UNIQUE (aggregator_event_id)</code> — highlighted rows share an event id.</span>
         </div>
         {showMockBanner ? (

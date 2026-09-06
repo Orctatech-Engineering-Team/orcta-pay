@@ -1,5 +1,8 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Input } from "@base-ui/react/input";
+import { Button } from "@base-ui/react/button";
+import { Select } from "@base-ui/react/select";
 import { makeClient } from "../lib/api";
 import { getApiKey, getBaseUrl } from "../lib/config";
 import { formatDate, formatGHS } from "../lib/format";
@@ -9,8 +12,6 @@ function useLiveCharges(params: { q: string; product: string; gateway: string; s
   return useQuery({
     queryKey: ["charges", params],
     queryFn: async () => {
-      // Try live API — GET /v1/charges is not yet implemented on the service,
-      // so this will 404/network-error when offline and fall back to mock.
       const baseUrl = getBaseUrl().replace(/\/+$/, "");
       const url = new URL(`${baseUrl}/v1/charges`);
       if (params.product !== "all") url.searchParams.set("product", params.product);
@@ -60,24 +61,33 @@ export function ChargesPage() {
           detail calls live <code>GetChargeStatus</code> via TanStack Query when <code>VITE_ORCTA_PAY_URL</code> is reachable.
         </p>
         <div className="row" style={{ marginTop: 10 }}>
-          <input className="input" placeholder="Search by ref…" value={q} onChange={(e) => setQ(e.target.value)} style={{ flex: 1, minWidth: 220 }} />
-          <select className="select" value={product} onChange={(e) => setProduct(e.target.value)}>
-            <option value="all">All products</option>
-            <option value="orctago">orctago</option>
-            <option value="pos">pos</option>
-          </select>
-          <select className="select" value={gateway} onChange={(e) => setGateway(e.target.value)}>
-            <option value="all">All gateways</option>
-            <option value="hubtel">hubtel</option>
-            <option value="paystack">paystack</option>
-            <option value="moolre">moolre</option>
-          </select>
-          <select className="select" value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="all">All statuses</option>
-            <option value="pending">pending</option>
-            <option value="succeeded">succeeded</option>
-            <option value="failed">failed</option>
-          </select>
+          <Input className="input" placeholder="Search by ref…" value={q} onChange={(e) => setQ(e.target.value)} style={{ flex: 1, minWidth: 220 }} />
+          <Select.Root value={product} onValueChange={(v: unknown) => setProduct(v as string)}>
+            <Select.Trigger className="select"><Select.Value /><Select.Icon>▾</Select.Icon></Select.Trigger>
+            <Select.Portal><Select.Positioner><Select.Popup><Select.List>
+              <Select.Item value="all">All products</Select.Item>
+              <Select.Item value="orctago">orctago</Select.Item>
+              <Select.Item value="pos">pos</Select.Item>
+            </Select.List></Select.Popup></Select.Positioner></Select.Portal>
+          </Select.Root>
+          <Select.Root value={gateway} onValueChange={(v: unknown) => setGateway(v as string)}>
+            <Select.Trigger className="select"><Select.Value /><Select.Icon>▾</Select.Icon></Select.Trigger>
+            <Select.Portal><Select.Positioner><Select.Popup><Select.List>
+              <Select.Item value="all">All gateways</Select.Item>
+              <Select.Item value="hubtel">hubtel</Select.Item>
+              <Select.Item value="paystack">paystack</Select.Item>
+              <Select.Item value="moolre">moolre</Select.Item>
+            </Select.List></Select.Popup></Select.Positioner></Select.Portal>
+          </Select.Root>
+          <Select.Root value={status} onValueChange={(v: unknown) => setStatus(v as string)}>
+            <Select.Trigger className="select"><Select.Value /><Select.Icon>▾</Select.Icon></Select.Trigger>
+            <Select.Portal><Select.Positioner><Select.Popup><Select.List>
+              <Select.Item value="all">All statuses</Select.Item>
+              <Select.Item value="pending">pending</Select.Item>
+              <Select.Item value="succeeded">succeeded</Select.Item>
+              <Select.Item value="failed">failed</Select.Item>
+            </Select.List></Select.Popup></Select.Positioner></Select.Portal>
+          </Select.Root>
         </div>
         {showMockBanner ? (
           <div style={{ marginTop: 10, background: "#fefce8", border: "1px solid #fde68a", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
@@ -140,7 +150,7 @@ function ChargeDetail({ row, onClose }: { row: ChargeRow; onClose: () => void })
     <div className="card">
       <div className="row" style={{ justifyContent: "space-between" }}>
         <h2 style={{ margin: 0 }}>Charge detail — {row.ref.slice(0, 32)}…</h2>
-        <button className="btn ghost" onClick={onClose}>Close</button>
+        <Button className="btn ghost" onClick={onClose}>Close</Button>
       </div>
 
       <div className="grid2" style={{ marginTop: 12 }}>
@@ -159,7 +169,7 @@ function ChargeDetail({ row, onClose }: { row: ChargeRow; onClose: () => void })
         <div>
           <h3 style={{ fontSize: 13, margin: "0 0 6px" }}>GetChargeStatus (live)</h3>
           <div className="row" style={{ marginBottom: 8 }}>
-            <button className="btn" onClick={() => void refetch()} disabled={isFetching}>{isFetching ? "Fetching…" : "Fetch via OrctaPay.getChargeStatus"}</button>
+            <Button className="btn" onClick={() => void refetch()} disabled={isFetching}>{isFetching ? "Fetching…" : "Fetch via OrctaPay.getChargeStatus"}</Button>
             <span className="muted">Calls <code>GET /v1/charges/{"{ref}"}/status</code> through the TS client.</span>
           </div>
           {error ? <pre style={{ background: "#fef2f2", padding: 10, borderRadius: 8, fontSize: 12, whiteSpace: "pre-wrap" }}>{String((error as Error).message || error)}</pre> : null}

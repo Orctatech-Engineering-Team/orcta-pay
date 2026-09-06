@@ -74,16 +74,14 @@ Vault → env: `secret/orcta/orcta-pay/keys/{product}` → rendered to `.env` as
 
 ```bash
 pnpm install
-pnpm add @tanstack/react-query            # already in package.json
-pnpm add -D @tanstack/react-query-devtools # optional
 pnpm run dev      # http://localhost:5173, proxy /v1 and /healthz to VITE_ORCTA_PAY_URL
 pnpm run build    # tsc && vite build
 pnpm run preview  # preview prod build on :5173
 pnpm run lint     # tsc --noEmit
 ```
 
-`vite.config.ts` proxies `/v1`, `/healthz`, `/readyz` to `VITE_ORCTA_PAY_URL` (or `ORCTA_PAY_URL`) for local dev so the browser avoids CORS.
+`vite.config.ts` proxies `/v1`, `/healthz`, `/readyz` to `VITE_ORCTA_PAY_URL` (or `ORCTA_PAY_URL`) for local dev so the browser avoids CORS. Requires `pnpm` only — `packageManager: pnpm@10.29.1`, no `package-lock.json`.
 
 ## Stack
 
-Vite + React 18 + TypeScript (strict) + React Router + TanStack Query (staleTime 30s, retry 1). Plain CSS — no Tailwind build step. Local path dep `file:../clients/ts/orctapay` → `from "@orctatech/orcta-pay"`. TanStack Query wraps `App.tsx` with `QueryClientProvider`; pages use `useQuery`/`useMutation` with `{data, error}` from `OrctaPay` (no throw) — `if (error) throw error` to surface in query.
+Vite 6 + React 18 + TypeScript (strict) + TanStack Router (code-based `createRouter` + `createRootRoute` in `src/router.tsx`) + TanStack Query 5 (staleTime 30s, retry 1) + TanStack Form + Zod + Base UI (unstyled primitives) + pnpm only. Plain CSS + `src/styles/baseui.css` (focus rings, dialog, toast) — no Tailwind build step. Local path dep `file:../clients/ts/orctapay` → `from "@orctatech/orcta-pay"`. `QueryClientProvider` wraps `RouterProvider` in `src/main.tsx`; routes (`/`, `/charges`, `/payouts`, `/ledger`, `/gateways`, `/apps`, `/webhooks`) are defined in `src/router.tsx` with `Layout` as root and `Outlet`. Forms use `useForm` from `@tanstack/react-form` with `zod` schemas (`createAppSchema`, `settingsSchema` in `src/lib/validators.ts`) and Base UI `Field`/`Dialog`/`Select`/`Input`/`Button`/`Tabs`/`Toast`. Deps installed via `pnpm add @tanstack/react-router @tanstack/react-form zod @base-ui/react` and `pnpm add -D @tanstack/router-plugin`. Server state = TanStack Query, client UI state = React `useState` inside route components (q, product, gateway filters, selected row, settings open) — add Zustand (`src/lib/store.ts`) only when cross-route client state grows, per the guide's "prefer boring" rule.
