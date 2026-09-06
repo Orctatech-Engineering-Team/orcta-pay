@@ -28,7 +28,19 @@ export function getBaseUrl(): string {
   } catch {
     // ignore
   }
-  return (import.meta.env.VITE_ORCTA_PAY_URL as string) || "http://localhost:8080";
+  const envUrl = import.meta.env.VITE_ORCTA_PAY_URL as string | undefined;
+  if (envUrl) return envUrl;
+  // When served from the same origin as the API (single image), use relative URLs.
+  try {
+    if (typeof window !== "undefined" && window.location?.origin) {
+      // Vite dev server runs on 5173; in that case keep localhost:8080 for API.
+      if (window.location.port === "5173") return "http://localhost:8080";
+      return window.location.origin;
+    }
+  } catch {
+    // ignore
+  }
+  return "http://localhost:8080";
 }
 
 export function setBaseUrl(url: string): void {

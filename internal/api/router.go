@@ -5,6 +5,9 @@ import (
 	_ "embed"
 	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -74,7 +77,52 @@ func NewRouter(app *platform.App) http.Handler {
 	r.Post("/webhooks/paystack", handleWebhook(app, "paystack"))
 	r.Post("/webhooks/moolre", handleWebhook(app, "moolre"))
 
+	// Single-image dashboard: serve static files from /usr/local/share/dashboard
+	// (Docker) or dashboard/dist (local dev), with SPA fallback to index.html.
+	r.Handle("/*", dashboardHandler())
+
 	return r
+}
+
+func dashboardHandler() http.HandlerFunc {
+	// Resolve dashboard dist directory: prefer Docker path, then local dev paths.
+	candidates := []string{
+		"/usr/local/share/dashboard",
+		"dashboard/dist",
+		"../dashboard/dist",
+	}
+	var dir string
+	for _, c := range candidates {
+		if st, err := os.Stat(filepath.Join(c, "index.html")); err == nil && !st.IsDir() {
+			dir = c
+			break
+		}
+	}
+	if dir == "" {
+		return func(w http.ResponseWriter, _ *http.Request) {
+			http.NotFound(w, nil)
+		}
+	}
+	fs := http.FileServer(http.Dir(dir))
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Don't intercept API routes that somehow fell through.
+		if strings.HasPrefix(r.URL.Path, "/v1/") || strings.HasPrefix(r.URL.Path, "/webhooks/") ||
+			r.URL.Path == "/healthz" || r.URL.Path == "/readyz" || r.URL.Path == "/metrics" ||
+			r.URL.Path == "/openapi.yaml" || r.URL.Path == "/docs" {
+			http.NotFound(w, r)
+			return
+		}
+		// SPA fallback: if file doesn't exist, serve index.html.
+		path := filepath.Join(dir, filepath.FromSlash(r.URL.Path))
+		if st, err := os.Stat(path); err != nil || st.IsDir() {
+			// Check if it's a file with extension; if not, fallback to index.html for client routing.
+			if !strings.Contains(filepath.Base(r.URL.Path), ".") {
+				http.ServeFile(w, r, filepath.Join(dir, "index.html"))
+				return
+			}
+		}
+		fs.ServeHTTP(w, r)
+	}
 }
 
 func readinessHandler(app *platform.App) http.HandlerFunc {
