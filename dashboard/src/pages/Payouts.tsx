@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@base-ui/react/button";
 import { getApiKey, getBaseUrl } from "../lib/config";
@@ -8,7 +8,7 @@ import { mockPayoutBatches, type PayoutBatchRow } from "../lib/mock";
 export function PayoutsPage() {
   const [selected, setSelected] = useState<PayoutBatchRow | null>(null);
 
-  const { data, error } = useQuery({
+  const { data, error, isFetching } = useQuery({
     queryKey: ["payouts"],
     queryFn: async () => {
       const baseUrl = getBaseUrl().replace(/\/+$/, "");
@@ -24,20 +24,56 @@ export function PayoutsPage() {
 
   const batches = data ?? mockPayoutBatches;
   const showMockBanner = !!error;
+  const totals = useMemo(() => {
+    const gross = batches.reduce((s, b) => s + b.gross_pesewas, 0);
+    const net = batches.reduce((s, b) => s + b.net_pesewas, 0);
+    const commission = batches.reduce((s, b) => s + b.commission_pesewas, 0);
+    const vendors = batches.reduce((s, b) => s + b.vendor_count, 0);
+    const completed = batches.filter((b) => b.status === "completed").length;
+    const running = batches.filter((b) => b.status === "running").length;
+    return { gross, net, commission, vendors, completed, running, count: batches.length };
+  }, [batches]);
 
   return (
-    <div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div className="card">
-        <h2>Payout batches</h2>
-        <p className="muted">
-          View over <code>payout_batches</code> + <code>payout_reservations</code>. Mock data when API unreachable. Click a batch for
-          per-vendor lines and reservation age (open → settled / released).
-        </p>
+        <div className="row" style={{ justifyContent: "space-between" }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 16 }}>Payout batches</h2>
+            <p className="muted" style={{ margin: "4px 0 0" }}>
+              View over <code>payout_batches</code> + <code>payout_reservations</code>. TanStack Query <code>["payouts"]</code> → <code>GET /v1/payouts</code>, fallback to mock. Click a batch for per-vendor lines and reservation age (open → settled / released).
+            </p>
+          </div>
+          <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>{isFetching ? "fetching…" : error ? "mock" : "live"}</span>
+        </div>
         {showMockBanner ? (
-          <div style={{ marginTop: 10, background: "#fefce8", border: "1px solid #fde68a", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
+          <div style={{ marginTop: 10, background: "var(--color-warn-soft)", border: "1px solid var(--color-warn-line)", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
             Live API unreachable — showing mock data
           </div>
         ) : null}
+      </div>
+
+      <div className="stats-row">
+        <div className="stat">
+          <span className="stat-label">Batches in view</span>
+          <span className="stat-value">{totals.count}</span>
+          <span className="stat-meta">{totals.completed} completed · {totals.running} running · {totals.count - totals.completed - totals.running} other</span>
+        </div>
+        <div className="stat">
+          <span className="stat-label">Gross</span>
+          <span className="stat-value">{formatGHS(totals.gross)}</span>
+          <span className="stat-meta">{totals.vendors} vendor lines · {formatGHS(totals.gross)} gross</span>
+        </div>
+        <div className="stat">
+          <span className="stat-label">Net disbursed</span>
+          <span className="stat-value">{formatGHS(totals.net)}</span>
+          <span className="stat-meta">After commission {formatGHS(totals.commission)}</span>
+        </div>
+        <div className="stat">
+          <span className="stat-label">Commission</span>
+          <span className="stat-value">{formatGHS(totals.commission)}</span>
+          <span className="stat-meta">Platform share — ledger kind commission</span>
+        </div>
       </div>
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
@@ -74,9 +110,9 @@ export function PayoutsPage() {
       </div>
 
       {selected && (
-        <div className="card">
+        <div className="card" style={{ borderColor: "var(--color-accent-ring)" }}>
           <div className="row" style={{ justifyContent: "space-between" }}>
-            <h2 style={{ margin: 0 }}>Batch {selected.id} — {selected.batch_date}</h2>
+            <h2 style={{ margin: 0, overflowWrap: "anywhere" }}>Batch {selected.id} — {selected.batch_date}</h2>
             <Button className="btn ghost" onClick={() => setSelected(null)}>Close</Button>
           </div>
           <p className="muted">
@@ -114,9 +150,7 @@ export function PayoutsPage() {
           </div>
 
           <p className="muted" style={{ marginTop: 10 }}>
-            Reservation state machine: <code>open → settled</code> (disbursement confirmed, ledger posted) or{" "}
-            <code>open → released</code> (permanent failure, funds return to available). An <code>open</code> past the threshold is a
-            monitored alert, not a silent state. See <code>orcta-go-docs/PAYMENTS_SERVICE_DESIGN.md:5</code>.
+            Reservation: <code>open → settled</code> (disbursement confirmed, ledger posted) or <code>open → released</code> (permanent failure, funds return to available). <code>open</code> past threshold is a monitored alert, not silent state.
           </p>
         </div>
       )}

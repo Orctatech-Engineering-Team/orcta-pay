@@ -1,5 +1,6 @@
 import { createRouter, createRootRoute, createRoute, redirect } from "@tanstack/react-router";
 import { Layout } from "./components/Layout";
+import { OverviewPage } from "./pages/Overview";
 import { ChargesPage } from "./pages/Charges";
 import { PayoutsPage } from "./pages/Payouts";
 import { LedgerPage } from "./pages/Ledger";
@@ -14,9 +15,13 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  beforeLoad: () => {
-    throw redirect({ to: "/charges" });
-  },
+  component: OverviewPage,
+});
+
+const overviewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/overview",
+  component: OverviewPage,
 });
 
 const chargesRoute = createRoute({
@@ -59,12 +64,13 @@ const notFoundRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/$splat",
   beforeLoad: () => {
-    throw redirect({ to: "/charges" });
+    throw redirect({ to: "/" });
   },
 });
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
+  overviewRoute,
   chargesRoute,
   payoutsRoute,
   ledgerRoute,

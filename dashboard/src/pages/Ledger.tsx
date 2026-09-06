@@ -19,7 +19,7 @@ export function LedgerPage() {
   const [vendor, setVendor] = useState("all");
   const [kind, setKind] = useState<"all" | "vendor" | "commission">("all");
 
-  const { data, error } = useQuery({
+  const { data, error, isFetching } = useQuery({
     queryKey: ["ledger", { vendor, kind }],
     queryFn: async () => {
       const baseUrl = getBaseUrl().replace(/\/+$/, "");
@@ -52,16 +52,18 @@ export function LedgerPage() {
   const reconciliationOk = totals.net === totals.credits - totals.debits;
 
   return (
-    <div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div className="card">
-        <h2>Ledger — double-entry</h2>
-        <p className="muted">
-          <code>vendor_ledger_entries</code> + <code>platform_commission_entries</code> with{" "}
-          <code>value_time</code> / <code>booking_time</code> / <code>settlement_time</code>. Filter by vendor. Reconciliation
-          invariant per period: <code>sum(debits + credits) + sum(commission) + aggregator net = 0</code> — verified below over the
-          visible slice.
-        </p>
-        <div className="row" style={{ marginTop: 10 }}>
+        <div className="row" style={{ justifyContent: "space-between" }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 16 }}>Ledger — double-entry</h2>
+            <p className="muted" style={{ margin: "4px 0 0" }}>
+              <code>vendor_ledger_entries</code> + <code>platform_commission_entries</code> with <code>value_time</code> / <code>booking_time</code> / <code>settlement_time</code>. TanStack Query <code>["ledger", {`{vendor, kind}`}]</code> → <code>GET /v1/ledger</code>, mock fallback. Reconciliation invariant checked over visible slice.
+            </p>
+          </div>
+          <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>{isFetching ? "fetching…" : error ? "mock" : "live"}</span>
+        </div>
+        <div className="row" style={{ marginTop: 12 }}>
           <Select.Root value={vendor} onValueChange={(v: unknown) => setVendor(v as string)}>
             <Select.Trigger className="select"><Select.Value /><Select.Icon>▾</Select.Icon></Select.Trigger>
             <Select.Portal><Select.Positioner><Select.Popup><Select.List>
@@ -80,28 +82,22 @@ export function LedgerPage() {
           <span className="muted">Showing {filtered.length} entries</span>
         </div>
         {showMockBanner ? (
-          <div style={{ marginTop: 10, background: "#fefce8", border: "1px solid #fde68a", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
+          <div style={{ marginTop: 10, background: "var(--color-warn-soft)", border: "1px solid var(--color-warn-line)", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
             Live API unreachable — showing mock data
           </div>
         ) : null}
       </div>
 
-      <div className="card">
-        <h2 style={{ marginBottom: 6 }}>Reconciliation — visible slice</h2>
-        <div className="grid2">
-          <div style={{ background: "#f1f5f9", padding: 10, borderRadius: 8, fontSize: 13 }}>
-            <div>Credits: <strong>{formatGHS(totals.credits)}</strong> ({totals.credits} pesewas)</div>
-            <div>Debits: <strong>{formatGHS(totals.debits)}</strong> ({totals.debits} pesewas)</div>
-            <div>Net (credits − debits): <strong>{formatGHS(totals.net)}</strong></div>
-          </div>
-          <div style={{ background: reconciliationOk ? "#ecfdf5" : "#fef2f2", padding: 10, borderRadius: 8, fontSize: 13 }}>
-            <div>Sum debits + credits + net = <strong>{reconciliationOk ? "0 ✓" : `${totals.credits - totals.debits - totals.net} ✗`}</strong></div>
-            <div className="muted" style={{ marginTop: 4 }}>
-              Per PAYMENTS_SERVICE_DESIGN: reconciliation job diffs this slice against aggregator settlement
-              (Moolre <code>POST /open/account/status</code> type 2, Paystack <code>GET /settlement</code>). Mismatches alert, never
-              auto-overwrite — correct with a linked compensating entry.
-            </div>
-          </div>
+      <div className="grid2">
+        <div className="stat">
+          <span className="stat-label">Visible slice</span>
+          <span className="stat-value">{filtered.length} entries</span>
+          <span className="stat-meta">Credits {formatGHS(totals.credits)} · Debits {formatGHS(totals.debits)} · Net {formatGHS(totals.net)}</span>
+        </div>
+        <div className="stat" style={{ background: reconciliationOk ? "var(--color-ok-soft)" : "var(--color-bad-soft)", borderColor: reconciliationOk ? "var(--color-ok-line)" : "var(--color-bad-line)" }}>
+          <span className="stat-label">Reconciliation</span>
+          <span className="stat-value" style={{ color: reconciliationOk ? "var(--color-ok-ink)" : "var(--color-bad-ink)" }}>{reconciliationOk ? "0 ✓" : `${totals.credits - totals.debits - totals.net} ✗`}</span>
+          <span className="muted" style={{ fontSize: 11 }}>Job diffs this slice against aggregator settlement. Mismatches alert, never auto-overwrite — compensating entry only.</span>
         </div>
       </div>
 

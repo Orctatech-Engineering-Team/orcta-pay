@@ -1,116 +1,108 @@
-/* Base UI unstyled — minimal focus ring and dialog styles */
+/* Base UI · Cobalt tokens — no inline colors */
 [data-base-ui-focus-visible] {
-  outline: 2px solid #0ea5e9;
+  outline: 2px solid var(--color-accent-ring);
   outline-offset: 2px;
 }
-
-/* Dialog */
 [data-base-ui-dialog-backdrop] {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.5);
+  background: var(--color-overlay);
   backdrop-filter: blur(2px);
 }
 [data-base-ui-dialog-popup] {
-  background: #fff;
-  border-radius: 12px;
-  padding: 16px;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
   width: 100%;
   max-width: 520px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.2);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-pop);
 }
-
-/* Field error */
 [data-base-ui-field-error] {
-  color: #dc2626;
-  font-size: 12px;
-  margin-top: 4px;
+  color: var(--color-bad-ink);
+  font-size: var(--text-sm);
+  margin-top: var(--space-1);
 }
-
-/* Toast viewport */
 [data-base-ui-toast-viewport] {
   position: fixed;
-  bottom: 16px;
-  right: 16px;
+  bottom: var(--space-4);
+  right: var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   z-index: 50;
   pointer-events: none;
 }
 [data-base-ui-toast-root] {
-  background: #0f172a;
-  color: #e2e8f0;
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-size: 13px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+  background: var(--color-ink-strong);
+  color: var(--color-ink-inverse);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-base);
+  box-shadow: var(--shadow-pop);
   pointer-events: auto;
   min-width: 260px;
   max-width: 360px;
 }
 [data-base-ui-toast-root][data-type="success"] {
-  background: #065f46;
+  background: var(--color-ok-ink);
 }
 [data-base-ui-toast-root][data-type="error"] {
-  background: #7f1d1d;
+  background: var(--color-bad-ink);
 }
-
-/* Tabs */
 [data-base-ui-tabs-list] {
   display: flex;
-  gap: 4px;
+  gap: var(--space-1);
 }
 [data-base-ui-tabs-tab] {
-  padding: 6px 10px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
+  padding: 6px var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
   border: 1px solid transparent;
   background: transparent;
-  color: #cbd5e1;
+  color: var(--color-ink-muted);
   cursor: pointer;
+  white-space: nowrap;
 }
 [data-base-ui-tabs-tab][data-active] {
-  background: #1e293b;
-  color: #fff;
+  background: var(--color-ink-strong);
+  color: var(--color-ink-inverse);
 }
 [data-base-ui-tabs-tab]:hover {
-  background: #1e293b;
+  background: var(--color-surface-muted);
 }
-
-/* Select */
 [data-base-ui-select-trigger] {
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  padding: 7px 10px;
-  background: #fff;
-  font-size: 13px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-sm);
+  padding: 7px var(--space-3);
+  background: var(--color-surface);
+  font-size: var(--text-base);
   min-width: 160px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
+  white-space: nowrap;
 }
 [data-base-ui-select-popup] {
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
-  padding: 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-pop);
+  padding: var(--space-1);
   min-width: 180px;
 }
 [data-base-ui-select-item] {
-  padding: 6px 10px;
-  border-radius: 6px;
-  font-size: 13px;
+  padding: 6px var(--space-3);
+  border-radius: var(--radius-xs);
+  font-size: var(--text-base);
   cursor: pointer;
 }
 [data-base-ui-select-item][data-highlighted] {
-  background: #f1f5f9;
+  background: var(--color-surface-muted);
 }
 [data-base-ui-select-item][data-selected] {
-  background: #e0f2fe;
-  font-weight: 600;
+  background: var(--color-accent-soft);
+  font-weight: var(--weight-semibold);
 }

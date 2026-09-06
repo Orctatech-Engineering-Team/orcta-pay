@@ -51,16 +51,26 @@ export function ChargesPage() {
 
   const rows = liveQuery.data ?? mockFiltered;
   const showMockBanner = !!liveQuery.error;
+  const succeeded = rows.filter((r) => r.status === "succeeded").length;
+  const pending = rows.filter((r) => r.status === "pending").length;
+  const failed = rows.filter((r) => r.status === "failed").length;
+  const volumeSucceeded = rows.filter((r) => r.status === "succeeded").reduce((s, r) => s + r.amount_pesewas, 0);
+  const total = rows.length;
+  const rate = total ? (succeeded / total) * 100 : 0;
 
   return (
-    <div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div className="card">
-        <h2>Charges — payment_intents</h2>
-        <p className="muted">
-          Thin view over <code>POST /v1/charges</code> / <code>GET /v1/charges/{"{ref}"}/status</code>. Mock data when API unreachable;
-          detail calls live <code>GetChargeStatus</code> via TanStack Query when <code>VITE_ORCTA_PAY_URL</code> is reachable.
-        </p>
-        <div className="row" style={{ marginTop: 10 }}>
+        <div className="row" style={{ justifyContent: "space-between" }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 16 }}>Charges — payment_intents</h2>
+            <p className="muted" style={{ margin: "4px 0 0" }}>
+              Thin view over <code>POST /v1/charges</code> / <code>GET /v1/charges/{"{ref}"}/status</code>. TanStack Query tries live via <code>GET /v1/charges</code>, mock when unreachable. Filter by product, gateway, status. Scope from rail.
+            </p>
+          </div>
+          <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>{liveQuery.isFetching ? "fetching…" : liveQuery.error ? "mock" : "live"}</span>
+        </div>
+        <div className="row" style={{ marginTop: 12 }}>
           <Input className="input" placeholder="Search by ref…" value={q} onChange={(e) => setQ(e.target.value)} style={{ flex: 1, minWidth: 220 }} />
           <Select.Root value={product} onValueChange={(v: unknown) => setProduct(v as string)}>
             <Select.Trigger className="select"><Select.Value /><Select.Icon>▾</Select.Icon></Select.Trigger>
@@ -90,10 +100,32 @@ export function ChargesPage() {
           </Select.Root>
         </div>
         {showMockBanner ? (
-          <div style={{ marginTop: 10, background: "#fefce8", border: "1px solid #fde68a", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
+          <div style={{ marginTop: 10, background: "var(--color-warn-soft)", border: "1px solid var(--color-warn-line)", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
             Live API unreachable — showing mock data
           </div>
         ) : null}
+      </div>
+
+      <div className="stats-row">
+        <div className="stat">
+          <span className="stat-label">Total in view</span>
+          <span className="stat-value">{total}</span>
+          <span className="stat-meta">{succeeded} succeeded · {pending} pending · {failed} failed</span>
+        </div>
+        <div className="stat">
+          <span className="stat-label">Success rate</span>
+          <span className="stat-value">{rate.toFixed(1)}%</span>
+          <span className="stat-meta">Succeeded / total in current filter — no fabricated delta</span>
+        </div>
+        <div className="stat">
+          <span className="stat-label">Volume · succeeded</span>
+          <span className="stat-value">{formatGHS(volumeSucceeded)}</span>
+          <span className="stat-meta">Sum of succeeded amounts ({volumeSucceeded} pesewas)</span>
+        </div>
+        <div className="stat">
+          <span className="stat-label">Inquiry</span>
+          <span className="stat-meta" style={{ marginTop: 4 }}>Click a row to fetch live <code>GetChargeStatus</code> via TS client <code>OrctaPay.getChargeStatus(ref)</code> — shows typed Result or OrctaPayError.</span>
+        </div>
       </div>
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
@@ -112,7 +144,7 @@ export function ChargesPage() {
             <tbody>
               {rows.map((r) => (
                 <tr key={r.ref} onClick={() => setSelected(r)} style={{ cursor: "pointer" }}>
-                  <td className="mono" title={r.ref}>{r.ref}</td>
+                  <td className="mono" title={r.ref} style={{ maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.ref}</td>
                   <td>{r.product}</td>
                   <td>{r.gateway}</td>
                   <td>{formatGHS(r.amount_pesewas)}</td>
@@ -147,15 +179,15 @@ function ChargeDetail({ row, onClose }: { row: ChargeRow; onClose: () => void })
   });
 
   return (
-    <div className="card">
+    <div className="card" style={{ borderColor: "var(--color-accent-ring)" }}>
       <div className="row" style={{ justifyContent: "space-between" }}>
-        <h2 style={{ margin: 0 }}>Charge detail — {row.ref.slice(0, 32)}…</h2>
+        <h2 style={{ margin: 0, overflowWrap: "anywhere" }}>Charge — {row.ref.slice(0, 28)}…</h2>
         <Button className="btn ghost" onClick={onClose}>Close</Button>
       </div>
 
       <div className="grid2" style={{ marginTop: 12 }}>
         <div>
-          <h3 style={{ fontSize: 13, margin: "0 0 6px" }}>Intent</h3>
+          <h3 style={{ fontSize: 13, margin: "0 0 6px", fontWeight: 600 }}>Intent</h3>
           <dl className="kv">
             <dt>ref</dt><dd>{row.ref}</dd>
             <dt>product</dt><dd>{row.product}</dd>
@@ -167,21 +199,21 @@ function ChargeDetail({ row, onClose }: { row: ChargeRow; onClose: () => void })
           </dl>
         </div>
         <div>
-          <h3 style={{ fontSize: 13, margin: "0 0 6px" }}>GetChargeStatus (live)</h3>
+          <h3 style={{ fontSize: 13, margin: "0 0 6px", fontWeight: 600 }}>GetChargeStatus · live</h3>
           <div className="row" style={{ marginBottom: 8 }}>
             <Button className="btn" onClick={() => void refetch()} disabled={isFetching}>{isFetching ? "Fetching…" : "Fetch via OrctaPay.getChargeStatus"}</Button>
             <span className="muted">Calls <code>GET /v1/charges/{"{ref}"}/status</code> through the TS client.</span>
           </div>
-          {error ? <pre style={{ background: "#fef2f2", padding: 10, borderRadius: 8, fontSize: 12, whiteSpace: "pre-wrap" }}>{String((error as Error).message || error)}</pre> : null}
-          {data != null ? <pre style={{ background: "#f1f5f9", padding: 10, borderRadius: 8, fontSize: 12, overflow: "auto" }}>{JSON.stringify(data, null, 2)}</pre> : null}
+          {error ? <pre style={{ background: "var(--color-bad-soft)", padding: 10, borderRadius: 8, fontSize: 12, whiteSpace: "pre-wrap", border: "1px solid var(--color-bad-line)", overflowWrap: "anywhere" }}>{String((error as Error).message || error)}</pre> : null}
+          {data != null ? <pre style={{ background: "var(--color-surface-muted)", padding: 10, borderRadius: 8, fontSize: 12, overflow: "auto", border: "1px solid var(--color-line)" }}>{JSON.stringify(data, null, 2)}</pre> : null}
           {data == null && !error && !isFetching ? <p className="muted">No live response yet. If the API is down you&apos;ll see a typed <code>OrctaPayError</code>.</p> : null}
         </div>
       </div>
 
       <div style={{ marginTop: 12 }}>
-        <h3 style={{ fontSize: 13, margin: "0 0 6px" }}>Raw gateway event</h3>
+        <h3 style={{ fontSize: 13, margin: "0 0 6px", fontWeight: 600 }}>Raw gateway event</h3>
         {row.gateway_event ? (
-          <pre style={{ background: "#f1f5f9", padding: 10, borderRadius: 8, fontSize: 12, overflow: "auto" }}>{JSON.stringify(row.gateway_event, null, 2)}</pre>
+          <pre style={{ background: "var(--color-surface-muted)", padding: 10, borderRadius: 8, fontSize: 12, overflow: "auto", border: "1px solid var(--color-line)" }}>{JSON.stringify(row.gateway_event, null, 2)}</pre>
         ) : (
           <p className="muted">No raw event stored for this intent (pending or failed before dispatch).</p>
         )}

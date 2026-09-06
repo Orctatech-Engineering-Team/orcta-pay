@@ -1,0 +1,14 @@
+{
+  "runs": [
+    {
+      "date": "2026-09-06",
+      "branch": "feat/ts-client-dashboard",
+      "macrostructure": "Workbench",
+      "theme": "Cobalt",
+      "nav": "N3 side-rail",
+      "footer": "Ft1 minimal",
+      "critique": "P5 H4 E5 S4 R5 V5",
+      "notes": "Modern-minimal operator dashboard — light paper L>85%, Space Grotesk + JetBrains Mono, cool blue accent, data-dense Workbench rail + stats cards + detail drawers"
+    }
+  ]
+}

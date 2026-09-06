@@ -1,0 +1,105 @@
+/* Hallmark · pre-emit critique: P5 H4 E5 S4 R5 V5 — Workbench + Cobalt · sharp utilitarian operator dashboard · restraint: no fabricated deltas · hierarchy: rail + cards + drawers · variety: stats, tables, health · revised: no inline tokens pass */
+:root {
+  /* font · Cobalt: Space Grotesk + JetBrains Mono */
+  --font-sans: "Space Grotesk", ui-sans-system, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-display: var(--font-sans);
+
+  /* paper · light L>85% */
+  --color-paper: oklch(0.985 0.005 240);
+  --color-paper-elevated: oklch(1 0 0);
+  --color-surface: oklch(1 0 0);
+  --color-surface-raised: oklch(0.985 0.006 240);
+  --color-surface-muted: oklch(0.96 0.008 240);
+  --color-surface-soft: oklch(0.975 0.004 240);
+
+  /* ink */
+  --color-ink: oklch(0.22 0.03 255);
+  --color-ink-strong: oklch(0.18 0.02 255);
+  --color-ink-muted: oklch(0.56 0.02 250);
+  --color-ink-faint: oklch(0.68 0.015 250);
+  --color-ink-inverse: oklch(0.98 0.005 240);
+  --color-ink-on-accent: oklch(0.98 0.01 240);
+
+  /* line */
+  --color-line: oklch(0.92 0.01 240);
+  --color-line-strong: oklch(0.86 0.015 240);
+  --color-line-faint: oklch(0.95 0.006 240);
+
+  /* accent · cobalt cool blue */
+  --color-accent: oklch(0.58 0.19 255);
+  --color-accent-strong: oklch(0.52 0.20 258);
+  --color-accent-soft: oklch(0.95 0.04 250);
+  --color-accent-faint: oklch(0.97 0.02 250);
+  --color-accent-ring: oklch(0.82 0.08 250);
+  --color-accent-ink: oklch(0.35 0.12 255);
+
+  /* semantic · grounded, no neon */
+  --color-ok: oklch(0.62 0.14 155);
+  --color-ok-soft: oklch(0.95 0.04 155);
+  --color-ok-line: oklch(0.88 0.06 155);
+  --color-ok-ink: oklch(0.38 0.10 155);
+  --color-warn: oklch(0.78 0.14 85);
+  --color-warn-soft: oklch(0.97 0.05 85);
+  --color-warn-line: oklch(0.90 0.08 85);
+  --color-warn-ink: oklch(0.45 0.10 75);
+  --color-bad: oklch(0.58 0.18 25);
+  --color-bad-soft: oklch(0.96 0.04 25);
+  --color-bad-line: oklch(0.88 0.06 25);
+  --color-bad-ink: oklch(0.42 0.12 25);
+  --color-info: oklch(0.62 0.14 240);
+  --color-info-soft: oklch(0.95 0.03 240);
+
+  /* chrome */
+  --color-rail: oklch(0.985 0.004 240);
+  --color-rail-line: oklch(0.92 0.01 240);
+  --color-header: oklch(1 0 0);
+  --color-overlay: oklch(0.22 0.02 255 / 0.45);
+
+  /* shadow · restrained */
+  --shadow-card: 0 1px 2px oklch(0.22 0.02 255 / 0.06), 0 4px 12px oklch(0.22 0.02 255 / 0.04);
+  --shadow-rail: 1px 0 0 var(--color-rail-line);
+  --shadow-pop: 0 8px 24px oklch(0.22 0.02 255 / 0.10), 0 2px 8px oklch(0.22 0.02 255 / 0.06);
+
+  /* radius */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  /* space · 4pt */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* type scale */
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --leading-tight: 1.2;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.6;
+  --tracking-tight: -0.02em;
+  --tracking-wide: 0.04em;
+  --tracking-wider: 0.06em;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* motion · subtle only */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 140ms;
+  --dur-base: 220ms;
+}

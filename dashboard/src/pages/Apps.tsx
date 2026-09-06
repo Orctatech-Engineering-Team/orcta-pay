@@ -19,7 +19,7 @@ export function AppsPage() {
   const [rotatedKey, setRotatedKey] = useState<{ api_key: string; id: string } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const { data, error, isLoading } = useQuery({
+  const { data, error, isLoading, isFetching } = useQuery({
     queryKey: ["apps"],
     queryFn: async () => {
       const client = makeClient();
@@ -33,6 +33,8 @@ export function AppsPage() {
 
   const apps = data ?? mockApps;
   const showMockBanner = !!error;
+  const active = apps.filter((a) => !a.revoked).length;
+  const revoked = apps.filter((a) => a.revoked).length;
 
   const form = useForm({
     defaultValues: { name: "", product: "orctago" as string },
@@ -42,7 +44,6 @@ export function AppsPage() {
         setErrorMsg(parsed.error.issues.map((i) => i.message).join(", "));
         return;
       }
-      // keep Result<{data,error}> handling — no throw, check error
       const client = makeClient();
       const { data: d, error: e } = await client.createApp(parsed.data);
       if (e) {
@@ -60,7 +61,6 @@ export function AppsPage() {
     },
   });
 
-  // Keep mutations for rotate/revoke with same Result handling
   const rotateMut = useMutation({
     mutationFn: async (appId: string) => {
       const client = makeClient();
@@ -115,14 +115,14 @@ export function AppsPage() {
   };
 
   return (
-    <div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between" }}>
           <div>
-            <h2 style={{ margin: 0 }}>Apps — API keys</h2>
+            <h2 style={{ margin: 0, fontSize: 16 }}>Apps — API keys</h2>
             <p className="muted" style={{ margin: "4px 0 0" }}>
               Each service creates an app and gets a per-product <code>pay_live_…</code> key. Keys are stored in Vault at{" "}
-              <code>secret/orcta/orcta-pay/keys/{"{product}"}</code> and rendered to <code>ORCTA_PAY_API_KEY</code>.
+              <code>secret/orcta/orcta-pay/keys/{"{product}"}</code> and rendered to <code>ORCTA_PAY_API_KEY</code>. Use TanStack Mutation <code>createApp</code> with <code>invalidate ["apps"]</code> — mock fallback when offline.
             </p>
           </div>
           <Button className="btn" onClick={() => { setCreateOpen(true); setErrorMsg(null); }}>
@@ -130,28 +130,48 @@ export function AppsPage() {
           </Button>
         </div>
         {showMockBanner ? (
-          <div style={{ marginTop: 10, background: "#fefce8", border: "1px solid #fde68a", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
+          <div style={{ marginTop: 10, background: "var(--color-warn-soft)", border: "1px solid var(--color-warn-line)", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
             Live API unreachable — showing mock data
           </div>
         ) : null}
-        {isLoading ? <p className="muted" style={{ marginTop: 8 }}>Loading…</p> : null}
-        {errorMsg ? <pre style={{ background: "#fef2f2", padding: 10, borderRadius: 8, fontSize: 12, whiteSpace: "pre-wrap", marginTop: 10 }}>{errorMsg}</pre> : null}
+        {isLoading ? <p className="muted" style={{ marginTop: 8 }}>Loading…</p> : <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>{isFetching ? "fetching…" : error ? "mock" : "live"}</span>}
+        {errorMsg ? <pre style={{ background: "var(--color-bad-soft)", padding: 10, borderRadius: 8, fontSize: 12, whiteSpace: "pre-wrap", marginTop: 10, border: "1px solid var(--color-bad-line)", overflowWrap: "anywhere" }}>{errorMsg}</pre> : null}
+      </div>
+
+      <div className="stats-row">
+        <div className="stat">
+          <span className="stat-label">Total apps</span>
+          <span className="stat-value">{apps.length}</span>
+          <span className="stat-meta">{active} active · {revoked} revoked</span>
+        </div>
+        <div className="stat">
+          <span className="stat-label">Per-product keys</span>
+          <span className="stat-meta" style={{ marginTop: 4 }}>One key per product — plug <code>pay_live_…</code> into Go/TS SDKs. Vault path <code>secret/orcta/orcta-pay/keys/{"{product}"}</code>.</span>
+        </div>
+        <div className="stat" style={{ background: "var(--color-accent-faint)", borderColor: "var(--color-accent-ring)" }}>
+          <span className="stat-label">Quick start</span>
+          <span className="muted" style={{ fontSize: 12, fontFamily: "var(--font-mono)", overflowWrap: "anywhere" }}>pnpm add @orctatech/orcta-pay · ORCTA_PAY_API_KEY=pay_live_… · new OrctaPay({"{"} apiKey {"}"})</span>
+        </div>
+        <div className="stat">
+          <span className="stat-label">Type safety</span>
+          <span className="stat-meta">TS client returns <code>{"{data, error}"}</code> Result — never throws. Check <code>error</code> with <code>OrctaPayError</code>.</span>
+        </div>
       </div>
 
       {newKey ? (
-        <div className="card" style={{ borderColor: "#f59e0b", background: "#fffbeb" }}>
-          <h2 style={{ margin: 0 }}>API key — copy now, shown once</h2>
+        <div className="card" style={{ borderColor: "var(--color-warn-line)", background: "var(--color-warn-soft)" }}>
+          <h2 style={{ margin: 0, color: "var(--color-warn-ink)" }}>API key — copy now, shown once</h2>
           <p className="muted">This key for <strong>{newKey.name}</strong> will not be shown again. Store it in Vault.</p>
-          <div style={{ background: "#0f172a", color: "#e2e8f0", padding: 10, borderRadius: 8, fontSize: 13, marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-            <code style={{ wordBreak: "break-all" }}>{newKey.api_key}</code>
+          <div style={{ background: "var(--color-ink-strong)", color: "var(--color-ink-inverse)", padding: 10, borderRadius: 8, fontSize: 13, marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, overflowWrap: "anywhere" }}>
+            <code style={{ wordBreak: "break-all", color: "var(--color-ink-inverse)" }}>{newKey.api_key}</code>
             <Button className="btn secondary" style={{ flexShrink: 0 }} onClick={() => void copy(newKey.api_key)}>
               Copy
             </Button>
           </div>
           <p className="muted" style={{ marginTop: 6 }}>Prefix: <code>{newKey.prefix}</code></p>
-          <div style={{ background: "#f1f5f9", padding: 10, borderRadius: 8, fontSize: 12, marginTop: 10 }}>
+          <div style={{ background: "var(--color-surface)", padding: 10, borderRadius: 8, fontSize: 12, marginTop: 10, border: "1px solid var(--color-line)" }}>
             <strong>Use it in your service:</strong>
-            <pre style={{ margin: "6px 0 0", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{`pnpm add @orctatech/orcta-pay
+            <pre style={{ margin: "6px 0 0", whiteSpace: "pre-wrap", wordBreak: "break-all", color: "var(--color-ink)", overflowWrap: "anywhere" }}>{`pnpm add @orctatech/orcta-pay
 ORCTA_PAY_API_KEY=${newKey.api_key}
 # Vault: secret/orcta/orcta-pay/keys/${newKey.name}
 import { OrctaPay } from "@orctatech/orcta-pay";
@@ -164,16 +184,16 @@ const pay = new OrctaPay({ apiKey: process.env.ORCTA_PAY_API_KEY! });`}</pre>
       ) : null}
 
       {rotatedKey ? (
-        <div className="card" style={{ borderColor: "#0ea5e9", background: "#f0f9ff" }}>
+        <div className="card" style={{ borderColor: "var(--color-accent-ring)", background: "var(--color-accent-faint)" }}>
           <h2 style={{ margin: 0 }}>Rotated key — copy now, shown once</h2>
-          <div style={{ background: "#0f172a", color: "#e2e8f0", padding: 10, borderRadius: 8, fontSize: 13, marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-            <code style={{ wordBreak: "break-all" }}>{rotatedKey.api_key}</code>
+          <div style={{ background: "var(--color-ink-strong)", color: "var(--color-ink-inverse)", padding: 10, borderRadius: 8, fontSize: 13, marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, overflowWrap: "anywhere" }}>
+            <code style={{ wordBreak: "break-all", color: "var(--color-ink-inverse)" }}>{rotatedKey.api_key}</code>
             <Button className="btn secondary" style={{ flexShrink: 0 }} onClick={() => void copy(rotatedKey.api_key)}>
               Copy
             </Button>
           </div>
-          <div style={{ background: "#f1f5f9", padding: 10, borderRadius: 8, fontSize: 12, marginTop: 10 }}>
-            <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{`ORCTA_PAY_API_KEY=${rotatedKey.api_key}`}</pre>
+          <div style={{ background: "var(--color-surface)", padding: 10, borderRadius: 8, fontSize: 12, marginTop: 10, border: "1px solid var(--color-line)" }}>
+            <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-all", overflowWrap: "anywhere" }}>{`ORCTA_PAY_API_KEY=${rotatedKey.api_key}`}</pre>
           </div>
           <Button className="btn ghost" style={{ marginTop: 8 }} onClick={() => setRotatedKey(null)}>
             Dismiss
@@ -267,7 +287,7 @@ const pay = new OrctaPay({ apiKey: process.env.ORCTA_PAY_API_KEY! });`}</pre>
                       onBlur={field.handleBlur}
                     />
                     {field.state.meta.isTouched && field.state.meta.errors.length ? (
-                      <Field.Error style={{ color: "#dc2626", fontSize: 12, marginTop: 4 }}>{String(field.state.meta.errors[0])}</Field.Error>
+                      <Field.Error style={{ color: "var(--color-bad-ink)", fontSize: 12, marginTop: 4 }}>{String(field.state.meta.errors[0])}</Field.Error>
                     ) : null}
                   </Field.Root>
                 )}
@@ -302,7 +322,7 @@ const pay = new OrctaPay({ apiKey: process.env.ORCTA_PAY_API_KEY! });`}</pre>
                       </Select.Portal>
                     </Select.Root>
                     {field.state.meta.isTouched && field.state.meta.errors.length ? (
-                      <Field.Error style={{ color: "#dc2626", fontSize: 12, marginTop: 4 }}>{String(field.state.meta.errors[0])}</Field.Error>
+                      <Field.Error style={{ color: "var(--color-bad-ink)", fontSize: 12, marginTop: 4 }}>{String(field.state.meta.errors[0])}</Field.Error>
                     ) : null}
                   </Field.Root>
                 )}

@@ -39,7 +39,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
             for demo — same shape any Orcta service uses with the TS client.
           </p>
 
-          <div style={{ marginTop: 10, background: "#f8fafc", border: "1px solid #e2e8f0", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
+          <div style={{ marginTop: 10, background: "var(--color-surface-muted)", border: "1px solid var(--color-line)", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
             Current key: <code>{maskKey(currentKey)}</code> {currentKey ? `· ${currentKey.slice(0, 12)}…` : ""} — from{" "}
             <code>VITE_ORCTA_PAY_API_KEY</code> or localStorage. After creating an app, paste its <code>pay_live_…</code> here.
           </div>
@@ -71,7 +71,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                     onBlur={field.handleBlur}
                   />
                   {field.state.meta.isTouched && field.state.meta.errors.length ? (
-                    <Field.Error style={{ color: "#dc2626", fontSize: 12, marginTop: 4 }}>{String(field.state.meta.errors[0])}</Field.Error>
+                    <Field.Error style={{ color: "var(--color-bad-ink)", fontSize: 12, marginTop: 4 }}>{String(field.state.meta.errors[0])}</Field.Error>
                   ) : null}
                 </Field.Root>
               )}
@@ -113,7 +113,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                     onBlur={field.handleBlur}
                   />
                   {field.state.meta.isTouched && field.state.meta.errors.length ? (
-                    <Field.Error style={{ color: "#dc2626", fontSize: 12, marginTop: 4 }}>{String(field.state.meta.errors[0])}</Field.Error>
+                    <Field.Error style={{ color: "var(--color-bad-ink)", fontSize: 12, marginTop: 4 }}>{String(field.state.meta.errors[0])}</Field.Error>
                   ) : null}
                 </Field.Root>
               )}
@@ -138,7 +138,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
             </div>
           </form>
 
-          <div style={{ marginTop: 12, padding: 10, background: "#f1f5f9", borderRadius: 8, fontSize: 12, color: "#334155" }}>
+          <div style={{ marginTop: 12, padding: 10, background: "var(--color-surface-muted)", borderRadius: 8, fontSize: 12, color: "var(--color-ink-muted)", border: "1px solid var(--color-line)" }}>
             <strong>Any Orcta service can use the TS client the same way:</strong>
             <pre style={{ margin: "6px 0 0", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>{`import { OrctaPay } from "@orctatech/orcta-pay";
 const pay = new OrctaPay({ apiKey: process.env.VITE_ORCTA_PAY_API_KEY! });
