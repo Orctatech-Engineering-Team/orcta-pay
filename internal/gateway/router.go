@@ -84,3 +84,14 @@ func (r *ChargerRouter) Adapter(g Gateway) (AggregatorClient, bool) {
 	a, ok := r.adapters[g]
 	return a, ok
 }
+
+// RecordResult forwards an outcome to the health store when one is wired.
+// Never fatal: health tracking must not break charge processing.
+func (r *ChargerRouter) RecordResult(ctx context.Context, g Gateway, success bool) {
+	if r.health == nil {
+		return
+	}
+	if rec, ok := r.health.(ResultRecorder); ok {
+		_ = rec.RecordResult(ctx, g, success)
+	}
+}

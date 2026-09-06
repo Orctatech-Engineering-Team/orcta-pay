@@ -4,14 +4,18 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io"
 	"net/http"
+	"time"
 
+	"github.com/orctatech/orcta-pay/internal/gateway"
 	"github.com/orctatech/orcta-pay/internal/observability"
 	"github.com/orctatech/orcta-pay/internal/platform"
+	"github.com/orctatech/orcta-pay/internal/webhooks"
 )
 
-func handleWebhook(app *platform.App, gateway string) http.HandlerFunc {
+func handleWebhook(app *platform.App, gatewayName string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
 		if err != nil {
@@ -20,26 +24,64 @@ func handleWebhook(app *platform.App, gateway string) http.HandlerFunc {
 		}
 		defer func() { _ = r.Body.Close() }()
 
-		secret := webhookSecret(app, gateway)
-		if gateway != "moolre" && secret != "" {
-			sig := r.Header.Get("X-Hubtel-Signature")
-			if gateway == "paystack" {
-				sig = r.Header.Get("X-Paystack-Signature")
-			}
-			if !verifyHMAC(secret, body, sig) {
-				writeError(w, http.StatusUnauthorized, "unauthorized", "bad signature")
-				return
-			}
+		if !verifyWebhook(app, gatewayName, r.Header, body) {
+			writeError(w, http.StatusUnauthorized, "unauthorized", "bad signature")
+			return
 		}
-		// Moolre has no published HMAC header — dedup via webhook_inbox is the source of truth.
-		// Dedup via webhook_inbox unique on aggregator_event_id — stub always accepts.
-		// Real path: insert, on conflict return 200, else call GetTransactionStatus and write ledger in same Tx.
-		_ = body
-		observability.LoggerFromContext(r.Context()).InfoContext(r.Context(), "webhook received", "gateway", gateway)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{}`))
+
+		err = app.Webhooks.Process(r.Context(), gateway.Gateway(gatewayName), body)
+		switch {
+		case err == nil:
+			writeJSON(w, http.StatusOK, map[string]any{"status": "processed"})
+		case errors.Is(err, webhooks.ErrDuplicate):
+			// Already recorded: ack 200 so the gateway stops retrying.
+			writeJSON(w, http.StatusOK, map[string]any{"status": "duplicate"})
+		case errors.Is(err, webhooks.ErrUnknownRef):
+			// No matching intent (e.g. event for another environment). Ack so
+			// the gateway stops retrying; the payload is dropped deliberately.
+			observability.LoggerFromContext(r.Context()).WarnContext(r.Context(),
+				"webhook for unknown charge reference", "gateway", gatewayName, "error", err)
+			writeJSON(w, http.StatusOK, map[string]any{"status": "ignored"})
+		case errors.Is(err, webhooks.ErrBadPayload):
+			writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		default:
+			// Transient failure (verify or persist): 5xx so the gateway retries.
+			observability.LoggerFromContext(r.Context()).ErrorContext(r.Context(),
+				"webhook processing failed", "gateway", gatewayName, "error", err)
+			writeError(w, http.StatusInternalServerError, "internal_error", "processing failed")
+		}
 	}
+}
+
+// verifyWebhook checks the payload signature. Standard Webhooks headers
+// (webhook-id/timestamp/signature, HMAC-SHA256 base64) take precedence per
+// spec; legacy per-gateway HMAC headers (X-Hubtel-Signature, X-Paystack-
+// Signature) are accepted for backward compatibility. Moolre publishes no
+// HMAC — webhook_inbox dedup is the source of truth.
+func verifyWebhook(app *platform.App, gatewayName string, h http.Header, body []byte) bool {
+	secret := webhookSecret(app, gatewayName)
+	if secret == "" {
+		return gatewayName == "moolre" // unconfigured secret: only moolre proceeds unverified
+	}
+	if id := h.Get("Webhook-Id"); id != "" {
+		return webhooks.VerifyStandardWebhook(
+			secret,
+			id,
+			h.Get("Webhook-Timestamp"),
+			h.Get("Webhook-Signature"),
+			body,
+			time.Now(),
+		)
+	}
+	sig := h.Get("X-Hubtel-Signature")
+	if gatewayName == "paystack" {
+		sig = h.Get("X-Paystack-Signature")
+	}
+	if sig != "" {
+		return verifyHMAC(secret, body, sig)
+	}
+	// Secret configured but no recognizable signature header: reject.
+	return false
 }
 
 func webhookSecret(app *platform.App, gateway string) string {

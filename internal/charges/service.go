@@ -130,8 +130,11 @@ func (s *Service) Initiate(ctx context.Context, req ChargeRequest) (ChargeResult
 			observability.LoggerFromContext(ctx).InfoContext(ctx, "gateway not configured", "gateway", chosen)
 			return ChargePending{Ref: ref, Gateway: chosen, ExternalRef: ref}, nil
 		}
+		// Not-configured is not a gateway health signal; all other failures are.
+		s.router.RecordResult(ctx, chosen, false)
 		return ChargeFailed{Reason: err.Error()}, nil
 	}
+	s.router.RecordResult(ctx, chosen, true)
 	observability.SetEventField(ctx, "charge_ref", ref)
 	return ChargePending{Ref: ref, Gateway: chosen, ExternalRef: resp.ExternalRef}, nil
 }

@@ -51,6 +51,7 @@ type Reservation struct {
 type Store interface {
 	AppendEntry(ctx context.Context, e LedgerEntry) error
 	ListEntries(ctx context.Context, ref string) ([]LedgerEntry, error)
+	StampSettlement(ctx context.Context, ref string, t time.Time) error
 	CreateReservation(ctx context.Context, r Reservation) error
 	SettleReservation(ctx context.Context, id uuid.UUID, settlementTime time.Time) error
 	ReleaseReservation(ctx context.Context, id uuid.UUID) error
@@ -78,7 +79,9 @@ func (s *Service) RecordCollection(ctx context.Context, ref, product string, amo
 	})
 }
 
-// ConfirmSettlement stamps settlement_time on the latest entry for ref.
+// ConfirmSettlement stamps settlement_time on all unsettled entries for ref.
+// Per ADR-035 the three timestamps are: value (when it happened), booking
+// (when recorded), settlement (when funds moved). This closes the third.
 func (s *Service) ConfirmSettlement(ctx context.Context, ref string) error {
 	entries, err := s.store.ListEntries(ctx, ref)
 	if err != nil {
@@ -87,8 +90,5 @@ func (s *Service) ConfirmSettlement(ctx context.Context, ref string) error {
 	if len(entries) == 0 {
 		return ErrNotFound
 	}
-	now := time.Now().UTC()
-	// In real code this updates the row; stub settles via new entry.
-	_ = now
-	return nil
+	return s.store.StampSettlement(ctx, ref, time.Now().UTC())
 }

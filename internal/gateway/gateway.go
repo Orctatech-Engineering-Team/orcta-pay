@@ -9,6 +9,12 @@ import (
 	"github.com/orctatech/orcta-pay/internal/money"
 )
 
+// ResultRecorder records per-gateway outcomes for health tracking
+// (implemented by the Valkey health store).
+type ResultRecorder interface {
+	RecordResult(ctx context.Context, gw Gateway, success bool) error
+}
+
 // Gateway identifies a provider.
 type Gateway string
 

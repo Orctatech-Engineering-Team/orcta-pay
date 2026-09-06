@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 
 	payapi "github.com/orctatech/orcta-pay/api"
 	"github.com/orctatech/orcta-pay/internal/platform"
@@ -19,6 +20,14 @@ func NewRouter(app *platform.App) http.Handler {
 	r.Use(middleware.RealIP) //nolint:staticcheck // RealIP is used intentionally per original scaffold
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Heartbeat("/healthz"))
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Request-Id"},
+		ExposedHeaders:   []string{"X-Request-Id"},
+		AllowCredentials: false,
+		MaxAge:           300,
+	}))
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -43,8 +52,13 @@ func NewRouter(app *platform.App) http.Handler {
 
 	r.Route("/v1", func(r chi.Router) {
 		r.Post("/charges", handleCreateCharge(app))
+		r.Get("/charges", handleListCharges(app))
 		r.Get("/charges/{ref}/status", handleChargeStatus(app))
 		r.Post("/payouts", handleCreatePayout(app))
+		r.Get("/payouts", handleListPayouts(app))
+		r.Get("/ledger", handleListLedger(app))
+		r.Get("/webhooks", handleListWebhooks(app))
+		r.Get("/gateways/health", handleGatewayHealth(app))
 
 		r.With(bearerAuth(app)).Post("/apps", handleCreateApp(app))
 		r.With(bearerAuth(app)).Get("/apps", handleListApps(app))

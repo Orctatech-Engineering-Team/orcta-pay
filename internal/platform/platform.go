@@ -18,18 +18,20 @@ import (
 	"github.com/orctatech/orcta-pay/internal/payouts"
 	postgresstore "github.com/orctatech/orcta-pay/internal/storage/postgres"
 	valkeystore "github.com/orctatech/orcta-pay/internal/storage/valkey"
+	"github.com/orctatech/orcta-pay/internal/webhooks"
 )
 
 // App holds the wired dependencies.
 type App struct {
-	Config  config.Config
-	Charges *charges.Service
-	Payouts *payouts.Service
-	Ledger  *ledger.Service
-	Apps    *apps.Service
-	Router  *gateway.ChargerRouter
-	Pool    *pgxpool.Pool
-	Observ  *observability.Provider
+	Config   config.Config
+	Charges  *charges.Service
+	Payouts  *payouts.Service
+	Ledger   *ledger.Service
+	Apps     *apps.Service
+	Webhooks *webhooks.Service
+	Router   *gateway.ChargerRouter
+	Pool     *pgxpool.Pool
+	Observ   *observability.Provider
 }
 
 // Build wires the graph. Callers must close App.Close.
@@ -48,7 +50,18 @@ func Build(ctx context.Context, cfg config.Config) (*App, error) {
 	}
 	health := valkeystore.NewHealthStore(valkeyClient)
 	locker := valkeystore.NewLocker(valkeyClient)
-	store := postgresstore.NewStore()
+	var store any
+	if pool != nil {
+		store = postgresstore.NewPostgresStore(pool)
+	} else {
+		observ.Logger.WarnContext(ctx, "postgres unavailable, using in-memory store — data will NOT persist")
+		store = postgresstore.NewMemoryStore()
+	}
+	// Both stores satisfy the same seams; the services accept the interfaces.
+	chargeStore := store.(charges.IntentStore)
+	payoutStore := store.(payouts.ReservationStore)
+	ledgerStore := store.(ledger.Store)
+	appStore := store.(apps.Store)
 
 	callbackBase := cfg.Payments.CallbackBaseURL
 	hubtelCB := ""
@@ -70,14 +83,15 @@ func Build(ctx context.Context, cfg config.Config) (*App, error) {
 	router := gateway.NewChargerRouter(cfg.Payments, health, adapters)
 
 	app := &App{
-		Config:  cfg,
-		Charges: charges.NewService(store, router),
-		Payouts: payouts.NewService(store, router, payouts.WithLedger(store), payouts.WithLocker(locker)),
-		Ledger:  ledger.NewService(store),
-		Apps:    apps.NewService(store, cfg.Environment),
-		Router:  router,
-		Pool:    pool,
-		Observ:  observ,
+		Config:   cfg,
+		Charges:  charges.NewService(chargeStore, router),
+		Payouts:  payouts.NewService(payoutStore, router, payouts.WithLedger(ledgerStore), payouts.WithLocker(locker)),
+		Ledger:   ledger.NewService(ledgerStore),
+		Apps:     apps.NewService(appStore, cfg.Environment),
+		Webhooks: webhooks.NewService(store.(webhooks.Store), router),
+		Router:   router,
+		Pool:     pool,
+		Observ:   observ,
 	}
 	return app, nil
 }
