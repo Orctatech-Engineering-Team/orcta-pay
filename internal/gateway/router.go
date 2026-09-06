@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/orctatech/orcta-pay/internal/config"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/config"
 )
 
 // HealthStore reports gateway health for ranking. Implemented by storage/valkey.
@@ -25,7 +25,7 @@ type ChargerRouter struct {
 func NewChargerRouter(cfg config.PaymentsConfig, health HealthStore, adapters map[Gateway]AggregatorClient) *ChargerRouter {
 	primary := Gateway(cfg.Primary)
 	if !primary.Valid() {
-		primary = GatewayHubtel
+		primary = GatewayPaystack
 	}
 	return &ChargerRouter{primary: primary, adapters: adapters, health: health}
 }
@@ -83,4 +83,15 @@ func (r *ChargerRouter) InitiateWithFallback(ctx context.Context, req InitiateRe
 func (r *ChargerRouter) Adapter(g Gateway) (AggregatorClient, bool) {
 	a, ok := r.adapters[g]
 	return a, ok
+}
+
+// RecordResult forwards an outcome to the health store when one is wired.
+// Never fatal: health tracking must not break charge processing.
+func (r *ChargerRouter) RecordResult(ctx context.Context, g Gateway, success bool) {
+	if r.health == nil {
+		return
+	}
+	if rec, ok := r.health.(ResultRecorder); ok {
+		_ = rec.RecordResult(ctx, g, success)
+	}
 }

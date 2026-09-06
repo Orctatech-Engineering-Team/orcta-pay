@@ -1,0 +1,205 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+  pull_request:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: orcta_pay
+          POSTGRES_PASSWORD: orcta_pay
+          POSTGRES_DB: orcta_pay_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U orcta_pay -d orcta_pay_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      valkey:
+        image: valkey/valkey:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TEST_DATABASE_URL: postgres://orcta_pay:orcta_pay@localhost:5432/orcta_pay_test?sslmode=disable
+      TEST_VALKEY_ADDR: localhost:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run migrations
+        run: |
+          go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+          migrate -path migrations -database "$TEST_DATABASE_URL" up
+
+      - name: Test
+        run: go test -race -coverprofile=coverage.out ./...
+
+      - name: Upload coverage
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.12.2
+
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dashboard dependencies
+        run: pnpm install
+
+      - name: Build TypeScript client
+        run: pnpm --filter @orctatech/orcta-pay run build
+
+      - name: Build dashboard
+        run: pnpm --filter orcta-pay-dashboard run build
+
+  deploy-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate compose files
+        run: |
+          set -euo pipefail
+          cp deploy/app/env.example deploy/app/.env
+          DEPLOY_SHA=validate docker compose -f deploy/app/docker-compose.yml --env-file deploy/app/.env config -q
+
+      - name: Assert kamal blue/green constraints
+        run: |
+          set -euo pipefail
+          if grep -qE '^\s*container_name:' deploy/app/docker-compose.yml; then
+            echo "::error file=deploy/app/docker-compose.yml::container_name is forbidden under kamal blue/green"
+            exit 1
+          fi
+          if grep -qE '^\s*ports:' deploy/app/docker-compose.yml; then
+            echo "::error file=deploy/app/docker-compose.yml::host port bindings are forbidden under kamal blue/green"
+            exit 1
+          fi
+          if ! grep -qE '^\s{2}web:' deploy/app/docker-compose.yml; then
+            echo "::error file=deploy/app/docker-compose.yml::the API service must be keyed 'web'"
+            exit 1
+          fi
+
+  migrations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Squawk
+        run: |
+          set -uo pipefail
+          shopt -s nullglob
+          files=(migrations/*.up.sql)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "no migrations yet — nothing to lint"
+            exit 0
+          fi
+          npx --yes squawk-cli@latest "${files[@]}" || {
+            echo "::warning::Squawk flagged a migration — see orcta-go-docs/migration-policy.md"
+          }
+
+      - name: Require lock_timeout in every migration
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          status=0
+          for f in migrations/*.up.sql; do
+            if ! grep -qi 'lock_timeout' "$f"; then
+              echo "::error file=$f::missing SET lock_timeout — see migration-policy.md section 4"
+              status=1
+            fi
+          done
+          exit $status
+
+  docker:
+    needs: [test, lint, dashboard, deploy-config, migrations]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=,format=long
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

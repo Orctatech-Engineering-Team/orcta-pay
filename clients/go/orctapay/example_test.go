@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"os"
 
-	"github.com/orctatech/orcta-pay/clients/go/orctapay"
-	"github.com/orctatech/orcta-pay/internal/money"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/clients/go/orctapay"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/money"
 )
 
 func ExampleClient_CreateCharge() {

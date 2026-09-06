@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/orctatech/orcta-pay/internal/config"
-	"github.com/orctatech/orcta-pay/internal/money"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/config"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/money"
 )
 
 func newTestMoolreServer(t *testing.T, handler http.HandlerFunc) (*MoolreAdapter, func()) {

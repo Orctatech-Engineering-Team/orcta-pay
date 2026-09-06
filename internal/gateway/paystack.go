@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/orctatech/orcta-pay/internal/config"
-	"github.com/orctatech/orcta-pay/internal/money"
-	"github.com/orctatech/orcta-pay/internal/observability"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/config"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/money"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/observability"
 )
 
 // PaystackAdapter implements AggregatorClient for Paystack.

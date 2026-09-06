@@ -9,25 +9,30 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/valkey-io/valkey-go"
 
-	"github.com/orctatech/orcta-pay/internal/charges"
-	"github.com/orctatech/orcta-pay/internal/config"
-	"github.com/orctatech/orcta-pay/internal/gateway"
-	"github.com/orctatech/orcta-pay/internal/ledger"
-	"github.com/orctatech/orcta-pay/internal/observability"
-	"github.com/orctatech/orcta-pay/internal/payouts"
-	postgresstore "github.com/orctatech/orcta-pay/internal/storage/postgres"
-	valkeystore "github.com/orctatech/orcta-pay/internal/storage/valkey"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/apps"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/charges"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/config"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/gateway"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/ledger"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/observability"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/payouts"
+	postgresstore "github.com/Orctatech-Engineering-Team/orcta-pay/internal/storage/postgres"
+	valkeystore "github.com/Orctatech-Engineering-Team/orcta-pay/internal/storage/valkey"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/webhooks"
 )
 
 // App holds the wired dependencies.
 type App struct {
-	Config  config.Config
-	Charges *charges.Service
-	Payouts *payouts.Service
-	Ledger  *ledger.Service
-	Router  *gateway.ChargerRouter
-	Pool    *pgxpool.Pool
-	Observ  *observability.Provider
+	Config   config.Config
+	Charges  *charges.Service
+	Payouts  *payouts.Service
+	Ledger   *ledger.Service
+	Apps     *apps.Service
+	Webhooks *webhooks.Service
+	Router   *gateway.ChargerRouter
+	Pool     *pgxpool.Pool
+	Valkey   valkey.Client
+	Observ   *observability.Provider
 }
 
 // Build wires the graph. Callers must close App.Close.
@@ -46,7 +51,27 @@ func Build(ctx context.Context, cfg config.Config) (*App, error) {
 	}
 	health := valkeystore.NewHealthStore(valkeyClient)
 	locker := valkeystore.NewLocker(valkeyClient)
-	store := postgresstore.NewStore()
+	var chargeStore charges.IntentStore
+	var payoutStore payouts.ReservationStore
+	var ledgerStore ledger.Store
+	var appStore apps.Store
+	var webhookStore webhooks.Store
+	if pool != nil {
+		pgStore := postgresstore.NewPostgresStore(pool)
+		chargeStore = pgStore
+		payoutStore = pgStore
+		ledgerStore = pgStore
+		webhookStore = pgStore
+		appStore = postgresstore.NewPostgresAppsStore(pool)
+	} else {
+		observ.Logger.WarnContext(ctx, "postgres unavailable, using in-memory store — data will NOT persist")
+		mem := postgresstore.NewMemoryStore()
+		chargeStore = mem
+		payoutStore = mem
+		ledgerStore = mem
+		webhookStore = mem
+		appStore = mem
+	}
 
 	callbackBase := cfg.Payments.CallbackBaseURL
 	hubtelCB := ""
@@ -68,19 +93,25 @@ func Build(ctx context.Context, cfg config.Config) (*App, error) {
 	router := gateway.NewChargerRouter(cfg.Payments, health, adapters)
 
 	app := &App{
-		Config:  cfg,
-		Charges: charges.NewService(store, router),
-		Payouts: payouts.NewService(store, router, payouts.WithLedger(store), payouts.WithLocker(locker)),
-		Ledger:  ledger.NewService(store),
-		Router:  router,
-		Pool:    pool,
-		Observ:  observ,
+		Config:   cfg,
+		Charges:  charges.NewService(chargeStore, router),
+		Payouts:  payouts.NewService(payoutStore, router, payouts.WithLedger(ledgerStore), payouts.WithLocker(locker)),
+		Ledger:   ledger.NewService(ledgerStore),
+		Apps:     apps.NewService(appStore, cfg.Environment),
+		Webhooks: webhooks.NewService(webhookStore, router),
+		Router:   router,
+		Pool:     pool,
+		Valkey:   valkeyClient,
+		Observ:   observ,
 	}
 	return app, nil
 }
 
 // Close releases resources.
 func (a *App) Close() {
+	if a.Valkey != nil {
+		a.Valkey.Close()
+	}
 	if a.Pool != nil {
 		a.Pool.Close()
 	}
@@ -110,7 +141,11 @@ func newValkey(cfg config.ValkeyConfig) (valkey.Client, error) {
 	if cfg.Addr == "" {
 		return nil, fmt.Errorf("valkey addr empty")
 	}
-	client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{cfg.Addr}})
+	client, err := valkey.NewClient(valkey.ClientOption{
+		InitAddress: []string{cfg.Addr},
+		Password:    cfg.Password,
+		SelectDB:    cfg.DB,
+	})
 	if err != nil {
 		return nil, err
 	}

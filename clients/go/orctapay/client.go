@@ -14,11 +14,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/orctatech/orcta-pay/internal/money"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/money"
 )
 
 // DefaultBaseURL is used for local development.
@@ -31,6 +32,17 @@ var (
 	ErrNotFound       = errors.New("orctapay: not found")
 	ErrInvalidRequest = errors.New("orctapay: invalid request")
 )
+
+// APIError carries the API error envelope details for a non-2xx response.
+type APIError struct {
+	StatusCode int
+	Code       string
+	Message    string
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("orctapay: %s: %s", e.Code, e.Message)
+}
 
 // Client is a thin wrapper over the Orcta Pay HTTP API.
 type Client struct {
@@ -91,7 +103,6 @@ type CreateChargeRequest struct {
 	Wallet         string
 	Phone          string
 	IdempotencyKey string
-	CallbackURL    string
 	Metadata       map[string]any
 }
 
@@ -154,6 +165,94 @@ type PayoutResult struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
+// CreateAppRequest is the input for POST /v1/apps.
+type CreateAppRequest struct {
+	Name    string
+	Product string
+}
+
+// CreateAppResponse is returned by POST /v1/apps.
+// APIKey is shown exactly once — persist it immediately.
+type CreateAppResponse struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Product   string    `json:"product"`
+	APIKey    string    `json:"api_key"`
+	Prefix    string    `json:"api_key_prefix"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// App is a record from GET /v1/apps.
+type App struct {
+	ID         string     `json:"id"`
+	Name       string     `json:"name"`
+	Product    string     `json:"product"`
+	Prefix     string     `json:"api_key_prefix"`
+	CreatedAt  time.Time  `json:"created_at"`
+	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
+	CreatedBy  string     `json:"created_by"`
+}
+
+// RotateAppKeyResponse is returned by POST /v1/apps/{id}/keys/rotate.
+// APIKey is shown exactly once — persist it immediately.
+type RotateAppKeyResponse struct {
+	APIKey string `json:"api_key"`
+	Prefix string `json:"api_key_prefix"`
+}
+
+// CreateApp creates an app and returns its API key (shown once).
+func (c *Client) CreateApp(ctx context.Context, req CreateAppRequest) (CreateAppResponse, error) {
+	if req.Name == "" {
+		return CreateAppResponse{}, fmt.Errorf("%w: name is required", ErrInvalidRequest)
+	}
+	if req.Product == "" {
+		return CreateAppResponse{}, fmt.Errorf("%w: product is required", ErrInvalidRequest)
+	}
+	body := map[string]any{"name": req.Name, "product": req.Product}
+	var out CreateAppResponse
+	if err := c.doJSON(ctx, http.MethodPost, "/v1/apps", body, &out); err != nil {
+		return CreateAppResponse{}, err
+	}
+	return out, nil
+}
+
+// ListApps lists apps for the current organization.
+func (c *Client) ListApps(ctx context.Context) ([]App, error) {
+	var out []App
+	if err := c.doJSON(ctx, http.MethodGet, "/v1/apps", nil, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// RotateAppKey rotates an app's API key. The new key is shown once.
+func (c *Client) RotateAppKey(ctx context.Context, appID string) (RotateAppKeyResponse, error) {
+	if appID == "" {
+		return RotateAppKeyResponse{}, fmt.Errorf("%w: appID is required", ErrInvalidRequest)
+	}
+	path := "/v1/apps/" + url.PathEscape(appID) + "/keys/rotate"
+	var out RotateAppKeyResponse
+	if err := c.doJSON(ctx, http.MethodPost, path, map[string]any{}, &out); err != nil {
+		return RotateAppKeyResponse{}, err
+	}
+	return out, nil
+}
+
+// RotateKey is an alias for RotateAppKey.
+func (c *Client) RotateKey(ctx context.Context, appID string) (RotateAppKeyResponse, error) {
+	return c.RotateAppKey(ctx, appID)
+}
+
+// RevokeApp soft-deletes an app.
+func (c *Client) RevokeApp(ctx context.Context, appID string) error {
+	if appID == "" {
+		return fmt.Errorf("%w: appID is required", ErrInvalidRequest)
+	}
+	path := "/v1/apps/" + url.PathEscape(appID)
+	return c.doJSON(ctx, http.MethodDelete, path, nil, nil)
+}
+
 // CreateCharge initiates a charge.
 func (c *Client) CreateCharge(ctx context.Context, req CreateChargeRequest) (ChargeResult, error) {
 	key := req.IdempotencyKey
@@ -162,7 +261,7 @@ func (c *Client) CreateCharge(ctx context.Context, req CreateChargeRequest) (Cha
 		if product == "" {
 			product = "default"
 		}
-		key = buildReference(product, "hubtel", newULID())
+		key = buildReference(product, newULID())
 	}
 	currency := string(req.Amount.Currency())
 	if currency == "" {
@@ -190,6 +289,13 @@ func (c *Client) CreateCharge(ctx context.Context, req CreateChargeRequest) (Cha
 
 	var resp chargeWire
 	if err := c.doJSON(ctx, http.MethodPost, "/v1/charges", body, &resp); err != nil {
+		// The service reports synchronous charge failure as 502 with code
+		// "unavailable" and the gateway decline reason in the message. Surface
+		// it as ChargeFailed rather than a transport error.
+		var apiErr *APIError
+		if errors.As(err, &apiErr) && apiErr.Code == "unavailable" {
+			return ChargeFailed{Reason: apiErr.Message}, nil
+		}
 		return nil, err
 	}
 	// Map to sealed result based on status.
@@ -215,7 +321,7 @@ func (c *Client) GetChargeStatus(ctx context.Context, ref string) (ChargeStatus,
 	if ref == "" {
 		return ChargeStatus{}, fmt.Errorf("%w: ref is required", ErrInvalidRequest)
 	}
-	path := "/v1/charges/" + ref + "/status"
+	path := "/v1/charges/" + url.PathEscape(ref) + "/status"
 	var out ChargeStatus
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, &out); err != nil {
 		return ChargeStatus{}, err
@@ -332,25 +438,44 @@ func (c *Client) doJSON(ctx context.Context, method, path string, body any, out 
 			msg = resp.Status
 		}
 	}
-
-	switch resp.StatusCode {
-	case http.StatusUnauthorized:
-		return fmt.Errorf("%w: %s", ErrUnauthorized, msg)
-	case http.StatusNotFound:
-		return fmt.Errorf("%w: %s", ErrNotFound, msg)
-	case http.StatusBadRequest:
-		return fmt.Errorf("%w: %s", ErrInvalidRequest, msg)
-	default:
-		if resp.StatusCode >= 500 {
-			return fmt.Errorf("%w: %s: %s", ErrRequestFailed, resp.Status, msg)
+	code := env.Error.Code
+	if code == "" {
+		switch {
+		case resp.StatusCode == http.StatusUnauthorized:
+			code = "unauthorized"
+		case resp.StatusCode == http.StatusNotFound:
+			code = "not_found"
+		case resp.StatusCode == http.StatusBadRequest:
+			code = "invalid_request"
+		case resp.StatusCode >= 500:
+			code = "internal_error"
+		default:
+			code = "unknown"
 		}
-		return fmt.Errorf("orctapay: %s: %s", resp.Status, msg)
+	}
+	apiErr := &APIError{StatusCode: resp.StatusCode, Code: code, Message: msg}
+
+	switch {
+	case resp.StatusCode == http.StatusUnauthorized:
+		return errors.Join(ErrUnauthorized, apiErr)
+	case resp.StatusCode == http.StatusNotFound:
+		return errors.Join(ErrNotFound, apiErr)
+	case resp.StatusCode == http.StatusBadRequest:
+		return errors.Join(ErrInvalidRequest, apiErr)
+	case resp.StatusCode >= 500:
+		return errors.Join(ErrRequestFailed, apiErr)
+	default:
+		return apiErr
 	}
 }
 
-// buildReference formats optd-{product}-{gateway}-{ulid}.
-func buildReference(product, gateway, ulid string) string {
-	return fmt.Sprintf("optd-%s-%s-%s", product, gateway, ulid)
+// buildReference formats optd-{product}-{ulid}.
+//
+// No gateway segment: the gateway is chosen server-side per charge
+// (hubtel / paystack / moolre, ranked by the router), so the client cannot
+// know it up front. The authoritative gateway is returned on ChargeResult.
+func buildReference(product, ulid string) string {
+	return fmt.Sprintf("optd-%s-%s", product, ulid)
 }
 
 // newULID generates a 26-char Crockford Base32 ULID-like string.

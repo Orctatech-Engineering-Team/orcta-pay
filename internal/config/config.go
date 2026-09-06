@@ -44,6 +44,12 @@ func (e Environment) Valid() bool {
 	}
 }
 
+// AuthConfig holds API key and Vault settings.
+type AuthConfig struct {
+	APIKey    string
+	VaultAddr string
+}
+
 // Config is built once in main and passed down.
 type Config struct {
 	Environment Environment
@@ -53,6 +59,7 @@ type Config struct {
 	Observ      ObservabilityConfig
 	Payments    PaymentsConfig
 	Worker      WorkerConfig
+	Auth        AuthConfig
 }
 
 // HTTPConfig configures the API server.
@@ -186,6 +193,10 @@ func Load() (Config, error) {
 	sampleRatio, err := floatVar("OTEL_TRACE_SAMPLE_RATIO", defaultTraceSample)
 	errs = append(errs, err)
 
+	apiKey := os.Getenv("ORCTA_PAY_API_KEY")
+	if apiKey == "" {
+		apiKey = os.Getenv("AUTH_API_KEY")
+	}
 	cfg := Config{
 		Environment: env,
 		HTTP: HTTPConfig{
@@ -199,7 +210,7 @@ func Load() (Config, error) {
 		Worker: WorkerConfig{JobTimeout: jobTimeout},
 		Payments: PaymentsConfig{
 			PendingTimeout:  pendingTimeout,
-			Primary:         stringVar("PAYMENTS_PRIMARY", "hubtel"),
+			Primary:         stringVar("PAYMENTS_PRIMARY", "paystack"),
 			Hubtel:          hubtelConfig(),
 			Paystack:        paystackConfig(),
 			Moolre:          moolreConfig(),
@@ -221,6 +232,10 @@ func Load() (Config, error) {
 			LogLevel:         stringVar("LOG_LEVEL", defaultLogLevel),
 			OTLPEndpoint:     os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
 			TraceSampleRatio: sampleRatio,
+		},
+		Auth: AuthConfig{
+			APIKey:    apiKey,
+			VaultAddr: os.Getenv("ORCTA_PAY_VAULT_ADDR"),
 		},
 	}
 	errs = append(errs, cfg.Validate())
@@ -262,6 +277,12 @@ func (c Config) Validate() error {
 	}
 	if c.Payments.PendingTimeout <= 0 {
 		errs = append(errs, errors.New("config: PAYMENT_PENDING_TIMEOUT must be > 0"))
+	}
+	// Auth: the v1 API is unauthenticated without an API key.
+	// That is acceptable for local development only — refuse to boot in
+	// production without one.
+	if c.Environment == EnvProduction && c.Auth.APIKey == "" {
+		errs = append(errs, errors.New("config: ORCTA_PAY_API_KEY is required in production"))
 	}
 	return errors.Join(errs...)
 }

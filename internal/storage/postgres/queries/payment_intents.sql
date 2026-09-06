@@ -11,3 +11,9 @@ SELECT ref FROM payment_intents WHERE product = $1 AND idempotency_key = $2;
 
 -- name: UpdatePaymentIntentStatus :exec
 UPDATE payment_intents SET status = $2 WHERE ref = $1;
+
+-- name: GetPaymentIntentStatus :one
+SELECT status FROM payment_intents WHERE ref = $1;
+
+-- name: GetPaymentIntentForWebhook :one
+SELECT ref, gateway, status, product FROM payment_intents WHERE ref = $1;

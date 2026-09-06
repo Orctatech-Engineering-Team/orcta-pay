@@ -8,10 +8,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/orctatech/orcta-pay/internal/charges"
-	"github.com/orctatech/orcta-pay/internal/money"
-	"github.com/orctatech/orcta-pay/internal/payouts"
-	"github.com/orctatech/orcta-pay/internal/platform"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/charges"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/money"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/payouts"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/platform"
 )
 
 const maxBodyBytes = 1 << 20 // 1 MiB

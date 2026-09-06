@@ -18,15 +18,15 @@ The client sends `Authorization: Bearer <apiKey>`.
 
 ## Go
 
-Import path: `github.com/orctatech/orcta-pay/clients/go/orctapay`.
+Import path: `github.com/Orctatech-Engineering-Team/orcta-pay/clients/go/orctapay`.
 
 ```go
 import (
     "context"
     "os"
 
-    "github.com/orctatech/orcta-pay/clients/go/orctapay"
-    "github.com/orctatech/orcta-pay/internal/money"
+    "github.com/Orctatech-Engineering-Team/orcta-pay/clients/go/orctapay"
+    "github.com/Orctatech-Engineering-Team/orcta-pay/internal/money"
 )
 
 client := orctapay.NewClient(os.Getenv("ORCTA_PAY_URL"), os.Getenv("ORCTA_PAY_API_KEY"))
@@ -65,7 +65,7 @@ Wiring example for OrctaGo — swap the Hubtel provider for Orcta Pay:
 
 ```go
 // internal/platform/platform.go
-import "github.com/orctatech/orcta-pay/clients/go/orctapay"
+import "github.com/Orctatech-Engineering-Team/orcta-pay/clients/go/orctapay"
 
 payClient := orctapay.NewClient(os.Getenv("ORCTA_PAY_URL"), os.Getenv("ORCTA_PAY_API_KEY"))
 
@@ -91,7 +91,7 @@ No retries — the service outbox handles that.
 
 Every charge gets `optd-{product}-{gateway}-{ulid}`.
 Pass `IdempotencyKey` to reuse the same intent on retry.
-Omit it and the client generates `optd-{product}-hubtel-{ulid}`.
+Omit it and the client generates `optd-{product}-{ulid}`.
 
 ## Webhooks
 
@@ -108,7 +108,7 @@ A TypeScript client mirrors this shape:
 ```ts
 const client = new OrctaPayClient(process.env.ORCTA_PAY_URL!, process.env.ORCTA_PAY_API_KEY!);
 const res = await client.createCharge({ product: "pos", amountPesewas: 1800, currency: "GHS", wallet: "0241234567" });
-// res.ref is optd-pos-hubtel-...
+// res.ref is optd-pos-...
 const status = await client.getChargeStatus(res.ref);
 const batch = await client.createPayout({ product: "pos", entries: [{ recipient: "024...", amountPesewas: 5000 }] });
 ```
