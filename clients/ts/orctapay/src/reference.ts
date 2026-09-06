@@ -46,9 +46,14 @@ function encodeCrockford(b: Uint8Array): string {
   return out.join("");
 }
 
-/** Build `optd-{product}-{gateway}-{ulid}`. Gateway is lower-cased. */
-export function generateReference(product: string, gateway: string): string {
+/**
+ * Build `optd-{product}-{ulid}`.
+ *
+ * No gateway segment: the gateway is chosen server-side per charge
+ * (hubtel / paystack / moolre, ranked by the router), so the client cannot
+ * know it up front. The authoritative gateway is returned on ChargeResult.
+ */
+export function generateReference(product: string): string {
   const p = product || "default";
-  const g = gateway.toLowerCase();
-  return `optd-${p}-${g}-${newULID()}`;
+  return `optd-${p}-${newULID()}`;
 }

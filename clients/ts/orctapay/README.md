@@ -41,7 +41,7 @@ const pay = new OrctaPay({
   timeout: 10_000, // ms, default 10s like Go
 });
 
-// Charge — omit idempotency_key to auto-generate optd-{product}-{gateway}-{ulid}
+// Charge — omit idempotency_key to auto-generate optd-{product}-{ulid}
 const res = await pay.createCharge({
   product: "orctago",
   amount_pesewas: 1800, // GH₵18.00
@@ -49,9 +49,9 @@ const res = await pay.createCharge({
   wallet: "0241234567",
 });
 
-if (res.status === "pending") {
-  // res.ref is optd-orctago-hubtel-...
-  console.log(res.ref, res.gateway);
+if (res.data?.status === "pending") {
+  // res.data.ref is optd-orctago-...; res.data.gateway is the gateway chosen server-side
+  console.log(res.data.ref, res.data.gateway);
 } else if (res.status === "succeeded") {
   console.log(res.amount_pesewas);
 } else {
@@ -59,7 +59,7 @@ if (res.status === "pending") {
 }
 
 // Authoritative status (calls gateway GetTransactionStatus)
-const status = await pay.getChargeStatus(res.status !== "failed" ? res.ref : "optd-...");
+const status = await pay.getChargeStatus(res.data && res.data.status !== "failed" ? res.data.ref : "optd-...");
 
 // Payout batch
 const batch = await pay.createPayout({
@@ -85,26 +85,25 @@ Keep auth, reference, and sealed-result mapping identical to the Go client. The 
 
 ### Errors
 
-All non-2xx and network failures throw `OrctaPayError`:
+The client never throws. Every method returns a `Result<T>` — either `{ data, error: null }` or `{ data: null, error }`:
 
 ```ts
 import { OrctaPayError } from "@orctatech/orcta-pay";
-try {
-  await pay.createCharge({ product: "orctago", amount_pesewas: 100, wallet: "024..." });
-} catch (e) {
-  if (e instanceof OrctaPayError) {
-    console.error(e.statusCode, e.code, e.message); // 401 unauthorized, 404 not_found, 500 internal_error, 408 timeout
+const { data, error } = await pay.createCharge({ product: "orctago", amount_pesewas: 100, wallet: "024..." });
+if (error) {
+  if (error instanceof OrctaPayError) {
+    console.error(error.statusCode, error.code, error.message); // 401 unauthorized, 404 not_found, 500 internal_error, 408 timeout
   }
 }
 ```
 
 ### Reference
 
-Every charge gets `optd-{product}-{gateway}-{ulid}`. Pass `idempotency_key` to reuse the same intent on retry; omit it and the client generates `optd-{product}-hubtel-{ulid}` via Crockford Base32 ULID (same as `internal/gateway/reference.go`). Gateway segment is lower-cased.
+Server-generated charge refs are `optd-{product}-{gateway}-{ulid}` — the gateway segment reflects the gateway the router actually chose (hubtel, paystack, or moolre). Client-generated idempotency keys omit the gateway (`optd-{product}-{ulid}` via Crockford Base32 ULID) because the gateway is decided server-side per charge.
 
 ```ts
 import { generateReference } from "@orctatech/orcta-pay";
-generateReference("pos", "hubtel"); // optd-pos-hubtel-01ARZ...
+generateReference("pos"); // optd-pos-01ARZ...
 ```
 
 No retries — the service outbox handles that. Timeout is 10s; `AbortController` aborts the fetch.

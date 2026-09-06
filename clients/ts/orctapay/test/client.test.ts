@@ -61,7 +61,7 @@ describe("OrctaPay", () => {
     expect(gotAuth).toBe("Bearer test-key");
     const key = gotBody["idempotency_key"] as string;
     expect(key.startsWith("optd-")).toBe(true);
-    expect(key).toMatch(/^optd-orctago-hubtel-[0-9A-Z]{26}$/);
+    expect(key).toMatch(/^optd-orctago-[0-9A-Z]{26}$/);
     expect(data?.status).toBe("pending");
     if (data?.status === "pending") {
       expect(data.ref).toBe("optd-orctago-hubtel-01ARZ3NDEKTSV4RRFFQ69G5FAV");
@@ -271,9 +271,22 @@ describe("OrctaPay", () => {
     expect(gotUrl).toBe("http://example.test/v1/charges");
   });
 
+  it("maps 502 unavailable to a failed result with the gateway reason", async () => {
+    mockFetchOnce(async () =>
+      jsonResponse(
+        { error: { code: "unavailable", message: "hubtel: insufficient funds" } },
+        { status: 502 },
+      ),
+    );
+    const client = new OrctaPay({ baseUrl: "http://example.test", apiKey: "k" });
+    const { data, error } = await client.createCharge({ product: "orctago", amount_pesewas: 100, wallet: "024" });
+    expect(error).toBeNull();
+    expect(data).toEqual({ status: "failed", reason: "hubtel: insufficient funds" });
+  });
+
   it("generateReference format via createCharge", async () => {
     const { generateReference } = await import("../src/reference.js");
-    const ref = generateReference("pos", "HubTel");
-    expect(ref).toMatch(/^optd-pos-hubtel-[0-9A-Z]{26}$/);
+    const ref = generateReference("pos");
+    expect(ref).toMatch(/^optd-pos-[0-9A-Z]{26}$/);
   });
 });

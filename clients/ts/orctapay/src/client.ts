@@ -63,7 +63,7 @@ export class OrctaPay {
     let key = req.idempotency_key;
     if (!key) {
       const product = req.product || "default";
-      key = generateReference(product, "hubtel");
+      key = generateReference(product);
     }
 
     const currency = req.currency || "GHS";
@@ -128,6 +128,12 @@ export class OrctaPay {
       }
       return { data, error: null };
     } catch (e) {
+      // The service reports synchronous charge failure as 502 with code
+      // "unavailable" and the gateway decline reason in the message. Surface
+      // it as a failed result rather than an error.
+      if (e instanceof OrctaPayError && e.code === "unavailable") {
+        return { data: { status: "failed", reason: e.message }, error: null };
+      }
       return { data: null, error: e instanceof OrctaPayError ? e : new OrctaPayError("unknown", 0, "unknown", e) };
     }
   }

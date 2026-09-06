@@ -76,7 +76,8 @@ export interface CreateAppResponse {
   name: string;
   product: string;
   api_key: string;
-  prefix: string;
+  api_key_prefix: string;
+  created_at: string;
 }
 
 /** App record from GET /v1/apps. */
@@ -84,15 +85,15 @@ export interface App {
   id: string;
   name: string;
   product: string;
-  prefix: string;
+  api_key_prefix: string;
   created_at: string;
   last_used_at?: string | null;
-  revoked?: boolean;
   revoked_at?: string | null;
+  created_by?: string;
 }
 
 /** Response from POST /v1/apps/{id}/keys/rotate. */
 export interface RotateAppKeyResponse {
   api_key: string;
-  prefix?: string;
+  api_key_prefix?: string;
 }

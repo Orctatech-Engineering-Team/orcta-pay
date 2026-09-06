@@ -135,6 +135,15 @@ paths:
               schema: { $ref: "#/components/schemas/Charge" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "502":
+          description: >
+            The gateway declined the charge synchronously. The error envelope
+            carries code `unavailable` and the gateway decline reason in
+            `message` (e.g. "hubtel: insufficient funds"). Clients surface this
+            as a failed charge, not a transport error.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
         "503": { $ref: "#/components/responses/Unavailable" }
 
   /v1/charges/{ref}/status:
