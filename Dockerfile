@@ -1,6 +1,6 @@
 # Both binaries, the migration tool, and the dashboard come from one image.
 # The entrypoint selects api, worker, or migrate.
-FROM golang:1.22-alpine AS build
+FROM golang:1.25-alpine AS build
 
 WORKDIR /src
 
@@ -23,12 +23,16 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 
 FROM node:22-alpine AS dashboard
 
-WORKDIR /src/dashboard
-COPY dashboard/package.json dashboard/pnpm-lock.yaml ./
+WORKDIR /src
+COPY pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY clients/ts/orctapay/package.json clients/ts/orctapay/
+COPY dashboard/package.json dashboard/
 RUN corepack enable && pnpm install --frozen-lockfile
 
-COPY dashboard/ ./
-RUN pnpm run build
+COPY clients/ts/orctapay/ clients/ts/orctapay/
+COPY dashboard/ dashboard/
+RUN pnpm --filter @orctatech/orcta-pay run build \
+ && pnpm --filter orcta-pay-dashboard run build
 
 FROM alpine:3.22
 
