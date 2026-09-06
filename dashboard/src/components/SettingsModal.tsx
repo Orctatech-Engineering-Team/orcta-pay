@@ -16,7 +16,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
       product: getProduct(),
     },
     onSubmit: async ({ value }) => {
-      // Zod validation before persist — keep Result-style handling (no throw)
+      // Zod validation before persist, keep Result-style handling (no throw)
       const parsed = settingsSchema.safeParse({ apiKey: value.apiKey.trim(), baseUrl: value.baseUrl.trim() });
       if (!parsed.success) return;
       setApiKey(value.apiKey.trim());
@@ -36,11 +36,11 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
           <p className="muted" style={{ marginTop: 4 }}>
             Paste any product&apos;s API key. Keys live in Vault at <code>secret/orcta/orcta-pay/keys/{"{product}"}</code> and are
             rendered to <code>.env</code> as <code>VITE_ORCTA_PAY_API_KEY</code>. This modal overrides via <code>localStorage</code>{" "}
-            for demo — same shape any Orcta service uses with the TS client.
+            for demo, same shape any Orcta service uses with the TS client.
           </p>
 
           <div style={{ marginTop: 10, background: "var(--color-surface-muted)", border: "1px solid var(--color-line)", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
-            Current key: <code>{maskKey(currentKey)}</code> {currentKey ? `· ${currentKey.slice(0, 12)}…` : ""} — from{" "}
+            Current key: <code>{maskKey(currentKey)}</code> {currentKey ? `· ${currentKey.slice(0, 12)}…` : ""} from{" "}
             <code>VITE_ORCTA_PAY_API_KEY</code> or localStorage. After creating an app, paste its <code>pay_live_…</code> here.
           </div>
 

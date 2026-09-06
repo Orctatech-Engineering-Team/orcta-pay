@@ -1,4 +1,4 @@
-/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V5 — Workbench · Cursor-editor aesthetic · dark-first with light toggle · calm near-monochrome, muted blue-grey accent, flat panels over bordered cards · same token names under [data-theme], no fabricated deltas, token-locked */
+/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V5 · Workbench · Cursor-editor aesthetic · dark-first with light toggle · calm near-monochrome, muted blue-grey accent, flat panels over bordered cards · same token names under [data-theme], no fabricated deltas, token-locked */
 
 /* Structure tokens · theme-invariant */
 :root {
@@ -24,11 +24,11 @@
 
   --text-xs: 12px;
   --text-sm: 13px;
-  --text-base: 14px;
-  --text-md: 15px;
-  --text-lg: 17px;
-  --text-xl: 22px;
-  --text-2xl: 28px;
+  --text-base: 15px;
+  --text-md: 16px;
+  --text-lg: 18px;
+  --text-xl: 24px;
+  --text-2xl: 32px;
 
   --leading-tight: 1.25;
   --leading-normal: 1.55;

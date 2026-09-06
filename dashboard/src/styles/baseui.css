@@ -1,4 +1,4 @@
-/* Base UI · Cursor tokens — dark-first calm, no inline colors */
+/* Base UI · Cursor tokens, dark-first calm, no inline colors */
 [data-base-ui-focus-visible] {
   outline: none;
   box-shadow: 0 0 0 3px var(--color-accent-faint);

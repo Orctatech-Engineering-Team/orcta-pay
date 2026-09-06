@@ -63,7 +63,7 @@ export function ChargesPage() {
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between" }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: 16 }}>Charges — payment_intents</h2>
+            <h2 style={{ margin: 0, fontSize: 16 }}>Charges, payment_intents</h2>
             <p className="muted" style={{ margin: "4px 0 0" }}>
               Thin view over <code>POST /v1/charges</code> / <code>GET /v1/charges/{"{ref}"}/status</code>. TanStack Query tries live via <code>GET /v1/charges</code>, mock when unreachable. Filter by product, gateway, status. Scope from rail.
             </p>
@@ -101,7 +101,7 @@ export function ChargesPage() {
         </div>
         {showMockBanner ? (
           <div style={{ marginTop: 10, background: "var(--color-warn-soft)", border: "1px solid var(--color-warn-line)", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
-            Live API unreachable — showing mock data
+            Live API unreachable, showing mock data
           </div>
         ) : null}
       </div>
@@ -115,7 +115,7 @@ export function ChargesPage() {
         <div className="stat">
           <span className="stat-label">Success rate</span>
           <span className="stat-value">{rate.toFixed(1)}%</span>
-          <span className="stat-meta">Succeeded / total in current filter — no fabricated delta</span>
+          <span className="stat-meta">Succeeded / total in current filter, no fabricated delta</span>
         </div>
         <div className="stat">
           <span className="stat-label">Volume · succeeded</span>
@@ -124,7 +124,7 @@ export function ChargesPage() {
         </div>
         <div className="stat">
           <span className="stat-label">Inquiry</span>
-          <span className="stat-meta" style={{ marginTop: 4 }}>Click a row to fetch live <code>GetChargeStatus</code> via TS client <code>OrctaPay.getChargeStatus(ref)</code> — shows typed Result or OrctaPayError.</span>
+          <span className="stat-meta" style={{ marginTop: 4 }}>Click a row to fetch live <code>GetChargeStatus</code> via TS client <code>OrctaPay.getChargeStatus(ref)</code>, shows typed Result or OrctaPayError.</span>
         </div>
       </div>
 
@@ -181,7 +181,7 @@ function ChargeDetail({ row, onClose }: { row: ChargeRow; onClose: () => void })
   return (
     <div className="card" style={{ borderColor: "var(--color-accent-ring)" }}>
       <div className="row" style={{ justifyContent: "space-between" }}>
-        <h2 style={{ margin: 0, overflowWrap: "anywhere" }}>Charge — {row.ref.slice(0, 28)}…</h2>
+        <h2 style={{ margin: 0, overflowWrap: "anywhere" }}>Charge, {row.ref.slice(0, 28)}…</h2>
         <Button className="btn ghost" onClick={onClose}>Close</Button>
       </div>
 
@@ -195,7 +195,7 @@ function ChargeDetail({ row, onClose }: { row: ChargeRow; onClose: () => void })
             <dt>amount</dt><dd>{formatGHS(row.amount_pesewas)} ({row.amount_pesewas} pesewas)</dd>
             <dt>status</dt><dd><span className={`pill ${row.status}`}>{row.status}</span></dd>
             <dt>created_at</dt><dd>{formatDate(row.created_at)}</dd>
-            <dt>external_ref</dt><dd>{row.external_ref || "—"}</dd>
+            <dt>external_ref</dt><dd>{row.external_ref || "\u2014"}</dd>
           </dl>
         </div>
         <div>

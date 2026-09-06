@@ -9,15 +9,53 @@ import { getApiKey, getBaseUrl, getProduct, setProduct, maskKey } from "../lib/c
 import { getTheme, toggleTheme, type Theme } from "../lib/theme";
 import { SettingsModal } from "./SettingsModal";
 
-const NAV = [
-  { to: "/", label: "Overview", hint: "overall" },
-  { to: "/charges", label: "Charges", hint: "payment_intents" },
-  { to: "/payouts", label: "Payouts", hint: "batches" },
-  { to: "/ledger", label: "Ledger", hint: "double-entry" },
-  { to: "/gateways", label: "Gateways", hint: "health" },
-  { to: "/webhooks", label: "Webhooks", hint: "inbox" },
-  { to: "/apps", label: "Apps", hint: "keys" },
-] as const;
+function IconOverview() {
+  return <svg className="rail-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>;
+}
+function IconCharges() {
+  return <svg className="rail-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /></svg>;
+}
+function IconPayouts() {
+  return <svg className="rail-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><polyline points="19 12 12 19 5 12" /></svg>;
+}
+function IconLedger() {
+  return <svg className="rail-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /><line x1="8" y1="7" x2="16" y2="7" /><line x1="8" y1="11" x2="14" y2="11" /></svg>;
+}
+function IconGateways() {
+  return <svg className="rail-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M12 2v4m0 12v4m10-10h-4M6 12H2m15.07-7.07l-2.83 2.83M9.76 14.24l-2.83 2.83m11.14 0l-2.83-2.83M9.76 9.76L6.93 6.93" /></svg>;
+}
+function IconWebhooks() {
+  return <svg className="rail-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>;
+}
+function IconApps() {
+  return <svg className="rail-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" /></svg>;
+}
+
+const NAV_GROUPS = [
+  {
+    label: "Overview",
+    items: [{ to: "/", label: "Overview", Icon: IconOverview }],
+  },
+  {
+    label: "Money",
+    items: [
+      { to: "/charges", label: "Charges", Icon: IconCharges },
+      { to: "/payouts", label: "Payouts", Icon: IconPayouts },
+      { to: "/ledger", label: "Ledger", Icon: IconLedger },
+    ],
+  },
+  {
+    label: "Infrastructure",
+    items: [
+      { to: "/gateways", label: "Gateways", Icon: IconGateways },
+      { to: "/webhooks", label: "Webhooks", Icon: IconWebhooks },
+    ],
+  },
+  {
+    label: "Access",
+    items: [{ to: "/apps", label: "Apps", Icon: IconApps }],
+  },
+] ;
 
 export function Layout() {
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -59,7 +97,6 @@ export function Layout() {
   const dotClass = health === "ok" ? "ok" : health === "down" ? "down" : "checking";
   const isSystemAdmin = scope === "all";
   const roleLabel = isSystemAdmin ? "System admin" : "Manager";
-  const roleHint = isSystemAdmin ? "All apps" : scope;
 
   return (
     <div className="workbench">
@@ -68,9 +105,8 @@ export function Layout() {
           <img src="/logo.svg" alt="Orcta" width={28} height={28} />
           <div className="rail-brand-text">
             <span className="rail-brand-title">Orcta Pay</span>
-            <span className="rail-brand-sub">operator · {healthLabel}</span>
+            <span className="rail-brand-sub">operator</span>
           </div>
-          <span style={{ marginLeft: "auto" }} className={`dot ${dotClass}`} aria-hidden />
         </div>
 
         <div className="rail-scope">
@@ -84,7 +120,7 @@ export function Layout() {
               <Select.Positioner>
                 <Select.Popup>
                   <Select.List>
-                    <Select.Item value="all">All apps — overall</Select.Item>
+                    <Select.Item value="all">All apps (overall)</Select.Item>
                     <Select.Item value="orctago">orctago</Select.Item>
                     <Select.Item value="pos">pos</Select.Item>
                   </Select.List>
@@ -93,34 +129,33 @@ export function Layout() {
             </Select.Portal>
           </Select.Root>
           <div className="row" style={{ gap: 6 }}>
-            <span className="pill" style={{ fontSize: 10 }}>{roleLabel}</span>
-            <span className="muted" style={{ fontSize: 11 }}>{roleHint} · per-app or overall stats</span>
+            <span className="pill" style={{ fontSize: 11 }}>{roleLabel}</span>
           </div>
-          <span className="muted" style={{ fontSize: 11 }}>
-            Vault <code>secret/orcta/orcta-pay/keys/{"{product}"}</code>
-          </span>
         </div>
 
         <nav className="rail-nav" aria-label="Sections">
-          <span className="rail-nav-label">Operate</span>
-          {NAV.map((n) => {
-            const active = pathname === n.to || (n.to === "/" && pathname === "/");
-            return (
-              <Link
-                key={n.to}
-                to={n.to}
-                onClick={(e) => {
-                  e.preventDefault();
-                  void navigate({ to: n.to });
-                }}
-                className={`rail-link ${active ? "active" : ""}`}
-              >
-                <span className="rail-link-dot" aria-hidden />
-                <span style={{ flex: 1 }}>{n.label}</span>
-                <span className="muted" style={{ fontSize: 11 }}>{n.hint}</span>
-              </Link>
-            );
-          })}
+          {NAV_GROUPS.map((group) => (
+            <div key={group.label} className="rail-nav-group">
+              <span className="rail-nav-label">{group.label}</span>
+              {group.items.map((n) => {
+                const active = pathname === n.to || (n.to === "/" && pathname === "/");
+                return (
+                  <Link
+                    key={n.to}
+                    to={n.to}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      void navigate({ to: n.to });
+                    }}
+                    className={`rail-link ${active ? "active" : ""}`}
+                  >
+                    <n.Icon />
+                    <span>{n.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         <div className="rail-meta">
@@ -128,7 +163,7 @@ export function Layout() {
             <span className={`dot ${dotClass}`} />
             <div className="rail-health-text">
               <span style={{ fontSize: 12, fontWeight: 600, color: "var(--color-ink)" }}>API {healthLabel}</span>
-              <span className="muted" style={{ fontSize: 11, overflowWrap: "anywhere" }}>{baseUrl} · {detail.slice(0, 80)}</span>
+              <span className="muted" style={{ fontSize: 12, overflowWrap: "anywhere" }}>{detail.slice(0, 60)}</span>
             </div>
           </div>
           <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
@@ -137,11 +172,6 @@ export function Layout() {
               Settings
             </Button>
           </div>
-          <div className="rail-foot">
-            Orcta Pay dashboard — Workbench
-            <br />
-            <span className="muted">N3 rail · Ft1 minimal · <code>/v1</code> proxy in dev</span>
-          </div>
         </div>
       </aside>
 
@@ -149,13 +179,17 @@ export function Layout() {
         <div className="work-header">
           <div>
             <h1 className="work-header-title">
-              {NAV.find((n) => n.to === pathname)?.label ?? (pathname === "/" ? "Overview" : pathname.replace("/", ""))}
+              {NAV_GROUPS.flatMap((g) => g.items).find((n) => n.to === pathname)?.label ?? (pathname === "/" ? "Overview" : pathname.replace("/", ""))}
             </h1>
             <span className="work-header-sub">
-              {isSystemAdmin ? "Overall — all Orcta apps" : `Per-app — ${scope}`} · <code>{baseUrl}</code> {health === "ok" ? "· green" : health === "down" ? "· red" : "· checking"}
+              {isSystemAdmin ? "Overall, all Orcta apps" : `Per-app, ${scope}`}
             </span>
           </div>
           <span className="work-header-spacer" />
+          <span className={`badge ${health === "ok" ? "ok" : health === "down" ? "down" : ""}`}>
+            <span className={`dot ${dotClass}`} style={{ marginRight: 6 }} />
+            {healthLabel}
+          </span>
           <Button
             className="theme-toggle"
             onClick={() => setThemeState(toggleTheme())}
@@ -174,37 +208,15 @@ export function Layout() {
             )}
             {theme === "dark" ? "Light" : "Dark"}
           </Button>
-          <span className={`badge ${health === "ok" ? "ok" : health === "down" ? "down" : ""}`}>
-            <span className={`dot ${dotClass}`} style={{ marginRight: 6 }} />
-            {healthLabel}
-          </span>
-          <span className="muted" style={{ fontSize: 11, maxWidth: 220, overflowWrap: "anywhere" }}>
-            Proxy <code>/v1</code> → <code>{baseUrl}</code> · Mock when unreachable
-          </span>
-        </div>
-
-        <div className="config-banner">
-          <span>
-            <span className={`dot ${dotClass}`} /> API <code>{baseUrl}</code> — {healthLabel} ({detail})
-          </span>
-          <span className="muted">
-            Scope <code>{scope}</code> · {roleLabel} {isSystemAdmin ? "sees overall + per-app" : "sees per-app"}
-          </span>
-          <span className="work-header-spacer" />
-          <span className="muted">Keys in Vault — create apps at <Link to="/apps">/apps</Link></span>
         </div>
 
         <main className="main">
           <Outlet />
         </main>
 
-        <footer style={{ padding: "12px 24px", borderTop: "1px solid var(--color-line)", background: "var(--color-surface)", display: "flex", gap: 12, flexWrap: "wrap", fontSize: 11, color: "var(--color-ink-faint)" }}>
-          <span>© Orcta · Pay</span>
-          <span>·</span>
-          <span>Vault <code>secret/orcta/orcta-pay/keys/{"{product}"}</code></span>
-          <span>·</span>
-          <span>TS client <code>@orctatech/orcta-pay</code> — pnpm only</span>
-          <span style={{ marginLeft: "auto" }}>Workbench · overall + per-app</span>
+        <footer style={{ padding: "10px 24px", borderTop: "1px solid var(--color-line-faint)", background: "var(--color-surface)", display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12, color: "var(--color-ink-faint)" }}>
+          <span>© Orcta Pay</span>
+          <span style={{ marginLeft: "auto" }}>TS client <code>@orctatech/orcta-pay</code></span>
         </footer>
       </div>
 

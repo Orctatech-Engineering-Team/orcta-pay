@@ -41,7 +41,7 @@ export function GatewaysPage() {
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between" }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: 16 }}>Gateway health — Valkey ranking</h2>
+            <h2 style={{ margin: 0, fontSize: 16 }}>Gateway health, Valkey ranking</h2>
             <p className="muted" style={{ margin: "4px 0 0" }}>
               Rolling success rate, p95 latency, and circuit breaker per <code>gateway × channel</code> from Valkey. Ranking is <strong>success-rate floor → cost tiebreak</strong>; open circuits excluded. TanStack Query <code>["gateways"]</code> → <code>GET /v1/gateways/health</code> with mock fallback.
             </p>
@@ -49,11 +49,11 @@ export function GatewaysPage() {
           <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>{isFetching ? "fetching…" : error ? "mock" : "live"}</span>
         </div>
         <div style={{ background: "var(--color-surface-muted)", padding: 10, borderRadius: 8, fontSize: 12, marginTop: 10, border: "1px solid var(--color-line)" }}>
-          <strong>Eligibility → Ranking → Failover:</strong> eligibility filters by channel/amount/currency/product; ranking scores remaining candidates; sync <code>Initiate</code> errors fail over to next-ranked gateway, async failures reconcile via <code>GetTransactionStatus</code>.
+            <strong>Eligibility, Ranking, Failover:</strong> eligibility filters by channel/amount/currency/product; ranking scores remaining candidates; sync <code>Initiate</code> errors fail over to next-ranked gateway, async failures reconcile via <code>GetTransactionStatus</code>.
         </div>
         {showMockBanner ? (
           <div style={{ marginTop: 10, background: "var(--color-warn-soft)", border: "1px solid var(--color-warn-line)", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
-            Live API unreachable — showing mock data
+            Live API unreachable, showing mock data
           </div>
         ) : null}
       </div>
@@ -72,11 +72,11 @@ export function GatewaysPage() {
         <div className="stat">
           <span className="stat-label">Avg success rate</span>
           <span className="stat-value">{(avgSuccess * 100).toFixed(1)}%</span>
-          <span className="stat-meta">Rolling window — floor 95% — no fabricated improvement</span>
+          <span className="stat-meta">Rolling window, floor 95%, no fabricated improvement</span>
         </div>
         <div className="stat">
           <span className="stat-label">Failover</span>
-          <span className="stat-meta" style={{ marginTop: 4 }}>Sync errors fail over to next-ranked gateway. Async failures reconcile via <code>GetTransactionStatus</code> — no cross-gateway retry to avoid double-charge.</span>
+          <span className="stat-meta" style={{ marginTop: 4 }}>Sync errors fail over to next-ranked gateway. Async failures reconcile via <code>GetTransactionStatus</code>, no cross-gateway retry to avoid double-charge.</span>
         </div>
       </div>
 
@@ -84,7 +84,7 @@ export function GatewaysPage() {
         <div key={channel} className="card" style={{ padding: 0, overflow: "hidden" }}>
           <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--color-line)", background: "var(--color-surface-soft)" }}>
             <strong style={{ fontSize: 13 }}>Channel: {channel}</strong>{" "}
-            <span className="muted">— ranked gateways [primary, fallback…]</span>
+            <span className="muted">, ranked gateways [primary, fallback…]</span>
           </div>
           <div style={{ overflowX: "auto" }}>
             <table>
@@ -103,7 +103,7 @@ export function GatewaysPage() {
               <tbody>
                 {chRows.map((r) => (
                   <tr key={`${r.gateway}-${r.channel}`} style={{ opacity: r.eligible ? 1 : 0.55 }}>
-                    <td><strong>#{r.rank === 99 ? "—" : r.rank}</strong></td>
+                    <td><strong>#{r.rank === 99 ? "\u2014" : r.rank}</strong></td>
                     <td>{r.gateway}</td>
                     <td>{r.eligible ? "yes" : "no (below floor / circuit open)"}</td>
                     <td>
@@ -113,7 +113,7 @@ export function GatewaysPage() {
                     <td>{r.p95_latency_ms} ms</td>
                     <td><span className={`pill ${r.circuit_state}`}>{r.circuit_state}</span></td>
                     <td className="mono">{r.cost_bps} bps{r.cost_fixed_pesewas ? ` + ${r.cost_fixed_pesewas}ps` : ""}</td>
-                    <td className="muted">{r.open_since ? new Date(r.open_since).toLocaleString() : "—"}</td>
+                    <td className="muted">{r.open_since ? new Date(r.open_since).toLocaleString() : "\u2014"}</td>
                   </tr>
                 ))}
               </tbody>

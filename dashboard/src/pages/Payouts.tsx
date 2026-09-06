@@ -48,7 +48,7 @@ export function PayoutsPage() {
         </div>
         {showMockBanner ? (
           <div style={{ marginTop: 10, background: "var(--color-warn-soft)", border: "1px solid var(--color-warn-line)", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
-            Live API unreachable — showing mock data
+            Live API unreachable, showing mock data
           </div>
         ) : null}
       </div>
@@ -72,7 +72,7 @@ export function PayoutsPage() {
         <div className="stat">
           <span className="stat-label">Commission</span>
           <span className="stat-value">{formatGHS(totals.commission)}</span>
-          <span className="stat-meta">Platform share — ledger kind commission</span>
+          <span className="stat-meta">Platform share, ledger kind commission</span>
         </div>
       </div>
 
@@ -112,7 +112,7 @@ export function PayoutsPage() {
       {selected && (
         <div className="card" style={{ borderColor: "var(--color-accent-ring)" }}>
           <div className="row" style={{ justifyContent: "space-between" }}>
-            <h2 style={{ margin: 0, overflowWrap: "anywhere" }}>Batch {selected.id} — {selected.batch_date}</h2>
+            <h2 style={{ margin: 0, overflowWrap: "anywhere" }}>Batch {selected.id}, {selected.batch_date}</h2>
             <Button className="btn ghost" onClick={() => setSelected(null)}>Close</Button>
           </div>
           <p className="muted">
@@ -142,7 +142,7 @@ export function PayoutsPage() {
                     <td>{formatGHS(l.net_pesewas)}</td>
                     <td><span className={`pill ${l.reservation_status}`}>{l.reservation_status}</span></td>
                     <td className="muted">{ageMinutes(l.reservation_created_at)} ago</td>
-                    <td className="muted">{l.reservation_resolved_at ? formatDate(l.reservation_resolved_at) : "—"}</td>
+                    <td className="muted">{l.reservation_resolved_at ? formatDate(l.reservation_resolved_at) : "\u2014"}</td>
                   </tr>
                 ))}
               </tbody>

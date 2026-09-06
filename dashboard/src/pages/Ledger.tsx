@@ -56,7 +56,7 @@ export function LedgerPage() {
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between" }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: 16 }}>Ledger — double-entry</h2>
+            <h2 style={{ margin: 0, fontSize: 16 }}>Ledger, double-entry</h2>
             <p className="muted" style={{ margin: "4px 0 0" }}>
               <code>vendor_ledger_entries</code> + <code>platform_commission_entries</code> with <code>value_time</code> / <code>booking_time</code> / <code>settlement_time</code>. TanStack Query <code>["ledger", {`{vendor, kind}`}]</code> → <code>GET /v1/ledger</code>, mock fallback. Reconciliation invariant checked over visible slice.
             </p>
@@ -83,7 +83,7 @@ export function LedgerPage() {
         </div>
         {showMockBanner ? (
           <div style={{ marginTop: 10, background: "var(--color-warn-soft)", border: "1px solid var(--color-warn-line)", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
-            Live API unreachable — showing mock data
+            Live API unreachable, showing mock data
           </div>
         ) : null}
       </div>
@@ -97,7 +97,7 @@ export function LedgerPage() {
         <div className="stat" style={{ background: reconciliationOk ? "var(--color-ok-soft)" : "var(--color-bad-soft)", borderColor: reconciliationOk ? "var(--color-ok-line)" : "var(--color-bad-line)" }}>
           <span className="stat-label">Reconciliation</span>
           <span className="stat-value" style={{ color: reconciliationOk ? "var(--color-ok-ink)" : "var(--color-bad-ink)" }}>{reconciliationOk ? "0 ✓" : `${totals.credits - totals.debits - totals.net} ✗`}</span>
-          <span className="muted" style={{ fontSize: 11 }}>Job diffs this slice against aggregator settlement. Mismatches alert, never auto-overwrite — compensating entry only.</span>
+          <span className="muted" style={{ fontSize: 11 }}>Job diffs this slice against aggregator settlement. Mismatches alert, never auto-overwrite, compensating entry only.</span>
         </div>
       </div>
 
@@ -129,7 +129,7 @@ export function LedgerPage() {
                   <td>{formatGHS(e.amount_pesewas)}</td>
                   <td className="muted">{formatDate(e.value_time)}</td>
                   <td className="muted">{formatDate(e.booking_time)}</td>
-                  <td className="muted">{e.settlement_time ? formatDate(e.settlement_time) : <span title="null until Verify or reconciliation confirms">— null</span>}</td>
+                  <td className="muted">{e.settlement_time ? formatDate(e.settlement_time) : <span title="null until Verify or reconciliation confirms">{"\u2014"} null</span>}</td>
                   <td className="mono" style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={e.ref}>{e.ref}</td>
                 </tr>
               ))}

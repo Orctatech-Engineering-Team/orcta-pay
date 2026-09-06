@@ -36,7 +36,7 @@ export async function checkHealth(): Promise<{ state: HealthState; detail: strin
     if (msg.includes("AbortError") || msg.includes("aborted")) {
       return { state: "down", detail: "timeout" };
     }
-    // Network error — try /readyz as second probe before giving up.
+    // Network error, try /readyz as second probe before giving up.
     try {
       const r2 = await tryFetch("/readyz");
       if (r2.ok) return { state: "ok", detail: `${r2.status} ${r2.statusText}` };

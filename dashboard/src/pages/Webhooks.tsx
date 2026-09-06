@@ -48,7 +48,7 @@ export function WebhooksPage() {
           <div>
             <h2 style={{ margin: 0, fontSize: 16 }}>Webhook inbox</h2>
             <p className="muted" style={{ margin: "4px 0 0" }}>
-              <code>webhook_inbox</code> (<code>aggregator_event_id</code> UNIQUE). Payload is a trigger, not truth — handler verifies HMAC (constant-time), dedups on <code>aggregator_event_id</code>, acks 200 durably, then calls <code>GetTransactionStatus</code> before writing the ledger. TanStack Query <code>["webhooks",{`{gateway}`}]</code> → <code>GET /v1/webhooks</code> with mock fallback.
+              <code>webhook_inbox</code> (<code>aggregator_event_id</code> UNIQUE). Payload is a trigger, not truth. Handler verifies HMAC (constant-time), dedups on <code>aggregator_event_id</code>, acks 200 durably, then calls <code>GetTransactionStatus</code> before writing the ledger. TanStack Query <code>["webhooks",{`{gateway}`}]</code> → <code>GET /v1/webhooks</code> with mock fallback.
             </p>
           </div>
           <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>{isFetching ? "fetching…" : error ? "mock" : "live"}</span>
@@ -63,11 +63,11 @@ export function WebhooksPage() {
               <Select.Item value="moolre">moolre</Select.Item>
             </Select.List></Select.Popup></Select.Positioner></Select.Portal>
           </Select.Root>
-          <span className="muted">Dedup: <code>UNIQUE (aggregator_event_id)</code> — {deduped} duplicated event(s) highlighted · {unprocessed} unprocessed</span>
+          <span className="muted">Dedup: <code>UNIQUE (aggregator_event_id)</code>, {deduped} duplicated event(s) highlighted, {unprocessed} unprocessed</span>
         </div>
         {showMockBanner ? (
           <div style={{ marginTop: 10, background: "var(--color-warn-soft)", border: "1px solid var(--color-warn-line)", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
-            Live API unreachable — showing mock data
+            Live API unreachable, showing mock data
           </div>
         ) : null}
       </div>
@@ -76,21 +76,21 @@ export function WebhooksPage() {
         <div className="stat">
           <span className="stat-label">Total in view</span>
           <span className="stat-value">{rows.length}</span>
-          <span className="stat-meta">Filtered inbox — {source.length} all gateways</span>
+          <span className="stat-meta">Filtered inbox, {source.length} all gateways</span>
         </div>
         <div className="stat">
           <span className="stat-label">Dedup groups</span>
           <span className="stat-value">{deduped}</span>
-          <span className="stat-meta">Redelivery is expected, not anomalous — duplicates return 200 without reprocessing</span>
+          <span className="stat-meta">Redelivery is expected, not anomalous. Duplicates return 200 without reprocessing</span>
         </div>
         <div className="stat">
           <span className="stat-label">Unprocessed</span>
           <span className="stat-value">{unprocessed}</span>
-          <span className="stat-meta">Null until async processing completes — backstop reconciliation poll covers never-arrived webhooks</span>
+          <span className="stat-meta">Null until async processing completes. Backstop reconciliation poll covers never-arrived webhooks</span>
         </div>
         <div className="stat">
           <span className="stat-label">Verification</span>
-          <span className="stat-meta" style={{ marginTop: 4 }}>Paystack <code>x-paystack-signature</code> HMAC SHA512 constant-time. Moolre has no webhook signature — dedup + <code>GetTransactionStatus</code> is the check. Absence is valid <code>pending</code>.</span>
+          <span className="stat-meta" style={{ marginTop: 4 }}>Paystack <code>x-paystack-signature</code> HMAC SHA512 constant-time. Moolre has no webhook signature, dedup + <code>GetTransactionStatus</code> is the check. Absence is valid <code>pending</code>.</span>
         </div>
       </div>
 
@@ -118,14 +118,14 @@ export function WebhooksPage() {
                     <td>{r.gateway}</td>
                     <td className="mono">{r.kind}</td>
                     <td className="muted">{formatDate(r.received_at)}</td>
-                    <td className="muted">{r.processed_at ? formatDate(r.processed_at) : <span title="null until async processing completes">— null</span>}</td>
+                    <td className="muted">{r.processed_at ? formatDate(r.processed_at) : <span title="null until async processing completes">{"\u2014"} null</span>}</td>
                     <td>
                       {isDup ? (
                         <span className="pill" style={{ background: isSecondDup ? "var(--color-warn-soft)" : "var(--color-surface-muted)" }}>
-                          {isSecondDup ? "duplicate — 200 no reprocess" : "first — processed"}
+                          {isSecondDup ? "duplicate, 200 no reprocess" : "first, processed"}
                         </span>
                       ) : (
-                        <span className="muted">—</span>
+                        <span className="muted">{"\u2014"}</span>
                       )}
                     </td>
                     <td>
@@ -145,8 +145,8 @@ export function WebhooksPage() {
       <div className="card">
         <h2>Notes</h2>
         <ul style={{ fontSize: 13, color: "var(--color-ink-muted)", margin: "6px 0 0", paddingLeft: 18, overflowWrap: "anywhere" }}>
-          <li>Moolre has no published webhook signature — dedup plus <code>GetTransactionStatus</code> is the check.</li>
-          <li>Paystack: <code>x-paystack-signature</code> HMAC SHA512 over raw body, constant-time compare. Reject unsigned → logged 401.</li>
+          <li>Moolre has no published webhook signature, dedup plus <code>GetTransactionStatus</code> is the check.</li>
+          <li>Paystack: <code>x-paystack-signature</code> HMAC SHA512 over raw body, constant-time compare. Reject unsigned, logged 401.</li>
           <li>Absence within the expected window is valid <code>pending</code>, not an error. Backstop reconciliation poll covers never-arrived webhooks.</li>
         </ul>
       </div>

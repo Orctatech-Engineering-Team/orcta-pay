@@ -72,7 +72,7 @@ export function AppsPage() {
       if (res?.data) {
         setRotatedKey({ api_key: res.data.api_key, id: res.appId });
         void qc.invalidateQueries({ queryKey: ["apps"] });
-        showToast("Key rotated — copy now", { type: "success" });
+        showToast("Key rotated, copy now", { type: "success" });
       }
     },
     onError: (e: unknown) => {
@@ -119,10 +119,10 @@ export function AppsPage() {
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between" }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: 16 }}>Apps — API keys</h2>
+            <h2 style={{ margin: 0, fontSize: 16 }}>Apps, API keys</h2>
             <p className="muted" style={{ margin: "4px 0 0" }}>
               Each service creates an app and gets a per-product <code>pay_live_…</code> key. Keys are stored in Vault at{" "}
-              <code>secret/orcta/orcta-pay/keys/{"{product}"}</code> and rendered to <code>ORCTA_PAY_API_KEY</code>. Use TanStack Mutation <code>createApp</code> with <code>invalidate ["apps"]</code> — mock fallback when offline.
+              <code>secret/orcta/orcta-pay/keys/{"{product}"}</code> and rendered to <code>ORCTA_PAY_API_KEY</code>. Use TanStack Mutation <code>createApp</code> with <code>invalidate ["apps"]</code>, mock fallback when offline.
             </p>
           </div>
           <Button className="btn" onClick={() => { setCreateOpen(true); setErrorMsg(null); }}>
@@ -131,7 +131,7 @@ export function AppsPage() {
         </div>
         {showMockBanner ? (
           <div style={{ marginTop: 10, background: "var(--color-warn-soft)", border: "1px solid var(--color-warn-line)", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
-            Live API unreachable — showing mock data
+            Live API unreachable, showing mock data
           </div>
         ) : null}
         {isLoading ? <p className="muted" style={{ marginTop: 8 }}>Loading…</p> : <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>{isFetching ? "fetching…" : error ? "mock" : "live"}</span>}
@@ -146,7 +146,7 @@ export function AppsPage() {
         </div>
         <div className="stat">
           <span className="stat-label">Per-product keys</span>
-          <span className="stat-meta" style={{ marginTop: 4 }}>One key per product — plug <code>pay_live_…</code> into Go/TS SDKs. Vault path <code>secret/orcta/orcta-pay/keys/{"{product}"}</code>.</span>
+          <span className="stat-meta" style={{ marginTop: 4 }}>One key per product, plug <code>pay_live_…</code> into Go/TS SDKs. Vault path <code>secret/orcta/orcta-pay/keys/{"{product}"}</code>.</span>
         </div>
         <div className="stat" style={{ background: "var(--color-accent-faint)", borderColor: "var(--color-accent-ring)" }}>
           <span className="stat-label">Quick start</span>
@@ -154,13 +154,13 @@ export function AppsPage() {
         </div>
         <div className="stat">
           <span className="stat-label">Type safety</span>
-          <span className="stat-meta">TS client returns <code>{"{data, error}"}</code> Result — never throws. Check <code>error</code> with <code>OrctaPayError</code>.</span>
+          <span className="stat-meta">TS client returns <code>{"{data, error}"}</code> Result, never throws. Check <code>error</code> with <code>OrctaPayError</code>.</span>
         </div>
       </div>
 
       {newKey ? (
         <div className="card" style={{ borderColor: "var(--color-warn-line)", background: "var(--color-warn-soft)" }}>
-          <h2 style={{ margin: 0, color: "var(--color-warn-ink)" }}>API key — copy now, shown once</h2>
+          <h2 style={{ margin: 0, color: "var(--color-warn-ink)" }}>API key, copy now, shown once</h2>
           <p className="muted">This key for <strong>{newKey.name}</strong> will not be shown again. Store it in Vault.</p>
           <div style={{ background: "var(--color-ink-strong)", color: "var(--color-ink-inverse)", padding: 10, borderRadius: 8, fontSize: 13, marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, overflowWrap: "anywhere" }}>
             <code style={{ wordBreak: "break-all", color: "var(--color-ink-inverse)" }}>{newKey.api_key}</code>
@@ -185,7 +185,7 @@ const pay = new OrctaPay({ apiKey: process.env.ORCTA_PAY_API_KEY! });`}</pre>
 
       {rotatedKey ? (
         <div className="card" style={{ borderColor: "var(--color-accent-ring)", background: "var(--color-accent-faint)" }}>
-          <h2 style={{ margin: 0 }}>Rotated key — copy now, shown once</h2>
+          <h2 style={{ margin: 0 }}>Rotated key, copy now, shown once</h2>
           <div style={{ background: "var(--color-ink-strong)", color: "var(--color-ink-inverse)", padding: 10, borderRadius: 8, fontSize: 13, marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, overflowWrap: "anywhere" }}>
             <code style={{ wordBreak: "break-all", color: "var(--color-ink-inverse)" }}>{rotatedKey.api_key}</code>
             <Button className="btn secondary" style={{ flexShrink: 0 }} onClick={() => void copy(rotatedKey.api_key)}>
@@ -222,7 +222,7 @@ const pay = new OrctaPay({ apiKey: process.env.ORCTA_PAY_API_KEY! });`}</pre>
                   <td>{a.product}</td>
                   <td className="mono">{a.prefix}</td>
                   <td className="muted">{formatDate(a.created_at)}</td>
-                  <td className="muted">{a.last_used_at ? formatDate(a.last_used_at) : "—"}</td>
+                  <td className="muted">{a.last_used_at ? formatDate(a.last_used_at) : "\u2014"}</td>
                   <td>{a.revoked ? <span className="pill failed">revoked</span> : <span className="pill succeeded">active</span>}</td>
                   <td>
                     <div className="row" style={{ gap: 6 }}>

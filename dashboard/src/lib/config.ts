@@ -60,7 +60,7 @@ export function setProduct(product: string): void {
 }
 
 export function maskKey(key: string): string {
-  if (!key) return "— not set —";
+  if (!key) return "not set";
   if (key.length <= 8) return "••••";
   return `${key.slice(0, 8)}…${key.slice(-4)}`;
 }
