@@ -1,6 +1,5 @@
-# Both binaries and the migration tool come from one image, selected by the
-# entrypoint, so the API, the worker, and the schema can never drift to
-# different builds of the same commit.
+# Both binaries, the migration tool, and the dashboard come from one image.
+# The entrypoint selects api, worker, or migrate.
 FROM golang:1.22-alpine AS build
 
 WORKDIR /src
@@ -22,6 +21,15 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
       -ldflags="-s -w -X main.version=${VERSION}" \
       -o /out/worker ./cmd/worker
 
+FROM node:22-alpine AS dashboard
+
+WORKDIR /src/dashboard
+COPY dashboard/package.json dashboard/pnpm-lock.yaml ./
+RUN corepack enable && pnpm install --frozen-lockfile
+
+COPY dashboard/ ./
+RUN pnpm run build
+
 FROM alpine:3.22
 
 RUN apk add --no-cache ca-certificates tzdata \
@@ -32,6 +40,7 @@ COPY --from=build /out/worker /usr/local/bin/worker
 COPY --from=build /go/bin/migrate /usr/local/bin/migrate
 
 COPY --from=build /src/migrations /migrations
+COPY --from=dashboard /src/dashboard/dist /usr/local/share/dashboard
 
 USER orcta
 EXPOSE 8080

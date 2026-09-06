@@ -210,7 +210,7 @@ func Load() (Config, error) {
 		Worker: WorkerConfig{JobTimeout: jobTimeout},
 		Payments: PaymentsConfig{
 			PendingTimeout:  pendingTimeout,
-			Primary:         stringVar("PAYMENTS_PRIMARY", "hubtel"),
+			Primary:         stringVar("PAYMENTS_PRIMARY", "paystack"),
 			Hubtel:          hubtelConfig(),
 			Paystack:        paystackConfig(),
 			Moolre:          moolreConfig(),

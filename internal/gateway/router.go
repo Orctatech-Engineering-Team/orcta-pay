@@ -25,7 +25,7 @@ type ChargerRouter struct {
 func NewChargerRouter(cfg config.PaymentsConfig, health HealthStore, adapters map[Gateway]AggregatorClient) *ChargerRouter {
 	primary := Gateway(cfg.Primary)
 	if !primary.Valid() {
-		primary = GatewayHubtel
+		primary = GatewayPaystack
 	}
 	return &ChargerRouter{primary: primary, adapters: adapters, health: health}
 }
