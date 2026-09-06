@@ -1,0 +1,4 @@
+deploy:
+  strategy: pull
+routing:
+  backend: kamal
