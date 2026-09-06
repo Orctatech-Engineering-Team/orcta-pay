@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/orctatech/orcta-pay/internal/money"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/money"
 )
 
 func TestCreateChargeSuccess(t *testing.T) {
@@ -158,6 +158,100 @@ func TestUnauthorized(t *testing.T) {
 	}
 	if !errors.Is(err, ErrUnauthorized) {
 		t.Fatalf("err = %v, want ErrUnauthorized", err)
+	}
+}
+
+func TestAppsEndpoints(t *testing.T) {
+	var gotMethod, gotPath string
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath = r.Method, r.URL.Path
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/apps":
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"id":"11111111-1111-1111-1111-111111111111","name":"pos","product":"pos","api_key":"optdak_secret","api_key_prefix":"optdak_abc","created_at":"2026-08-31T00:00:00Z"}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/apps":
+			_, _ = w.Write([]byte(`[{"id":"11111111-1111-1111-1111-111111111111","name":"pos","product":"pos","api_key_prefix":"optdak_abc","created_at":"2026-08-31T00:00:00Z","created_by":"user1"}]`))
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/keys/rotate"):
+			_, _ = w.Write([]byte(`{"api_key":"optdak_new","api_key_prefix":"optdak_def"}`))
+		case r.Method == http.MethodDelete:
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	c := NewClient("", "k", WithBaseURL(srv.URL))
+	ctx := context.Background()
+
+	created, err := c.CreateApp(ctx, CreateAppRequest{Name: "pos", Product: "pos"})
+	if err != nil {
+		t.Fatalf("CreateApp: %v", err)
+	}
+	if created.APIKey != "optdak_secret" || created.Prefix != "optdak_abc" {
+		t.Fatalf("created = %+v", created)
+	}
+
+	apps, err := c.ListApps(ctx)
+	if err != nil {
+		t.Fatalf("ListApps: %v", err)
+	}
+	if len(apps) != 1 || apps[0].Prefix != "optdak_abc" || apps[0].CreatedBy != "user1" {
+		t.Fatalf("apps = %+v", apps)
+	}
+
+	rot, err := c.RotateKey(ctx, "11111111-1111-1111-1111-111111111111")
+	if err != nil {
+		t.Fatalf("RotateKey: %v", err)
+	}
+	if rot.APIKey != "optdak_new" {
+		t.Fatalf("rotated = %+v", rot)
+	}
+	if gotPath != "/v1/apps/11111111-1111-1111-1111-111111111111/keys/rotate" {
+		t.Fatalf("rotate path = %q", gotPath)
+	}
+
+	if err := c.RevokeApp(ctx, "11111111-1111-1111-1111-111111111111"); err != nil {
+		t.Fatalf("RevokeApp: %v", err)
+	}
+	if gotMethod != http.MethodDelete {
+		t.Fatalf("revoke method = %q", gotMethod)
+	}
+
+	// Validation errors use sentinels and never hit the network.
+	if _, err := c.CreateApp(ctx, CreateAppRequest{}); !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("CreateApp empty err = %v, want ErrInvalidRequest", err)
+	}
+	if err := c.RevokeApp(ctx, ""); !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("RevokeApp empty err = %v, want ErrInvalidRequest", err)
+	}
+}
+
+func TestCreateChargeGatewayDeclineMapsToChargeFailed(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte(`{"error":{"code":"unavailable","message":"hubtel: insufficient funds"}}`))
+	}))
+	defer srv.Close()
+
+	c := NewClient("", "k", WithBaseURL(srv.URL))
+	res, err := c.CreateCharge(context.Background(), CreateChargeRequest{
+		Product: "orctago",
+		Amount:  money.New(100, money.GHS),
+		Wallet:  "0241234567",
+	})
+	if err != nil {
+		t.Fatalf("CreateCharge: %v", err)
+	}
+	failed, ok := res.(ChargeFailed)
+	if !ok {
+		t.Fatalf("result type = %T, want ChargeFailed", res)
+	}
+	if failed.Reason != "hubtel: insufficient funds" {
+		t.Fatalf("reason = %q, want gateway decline reason", failed.Reason)
 	}
 }
 

@@ -79,4 +79,4 @@ func StartSpan(ctx context.Context, name string) (context.Context, Span) {
 	return ctx, Span{span: span}
 }
 
-const tracerName = "github.com/orctatech/orcta-pay"
+const tracerName = "github.com/Orctatech-Engineering-Team/orcta-pay"

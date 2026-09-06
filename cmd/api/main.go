@@ -10,9 +10,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/orctatech/orcta-pay/internal/api"
-	"github.com/orctatech/orcta-pay/internal/config"
-	"github.com/orctatech/orcta-pay/internal/platform"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/api"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/config"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/platform"
 )
 
 func main() {
