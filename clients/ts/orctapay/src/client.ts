@@ -1,11 +1,15 @@
 import { OrctaPayError } from "./errors.js";
 import { generateReference } from "./reference.js";
 import type {
+  App,
   ChargeResult,
   ChargeStatus,
+  CreateAppRequest,
+  CreateAppResponse,
   CreateChargeRequest,
   CreatePayoutRequest,
   PayoutResult,
+  RotateAppKeyResponse,
 } from "./types.js";
 
 /** Resend-style result — never throws, always returns data or error. */
@@ -166,6 +170,68 @@ export class OrctaPay {
     try {
       const data = await this.doJSON<PayoutResult>("POST", "/v1/payouts", body);
       return { data, error: null };
+    } catch (e) {
+      return { data: null, error: e instanceof OrctaPayError ? e : new OrctaPayError("unknown", 0, "unknown", e) };
+    }
+  }
+
+  /** Create an app and get an API key. Shown once. */
+  async createApp(req: CreateAppRequest): Promise<Result<CreateAppResponse>> {
+    if (!req.name) {
+      return { data: null, error: new OrctaPayError("name is required", 400, "invalid_request") };
+    }
+    if (!req.product) {
+      return { data: null, error: new OrctaPayError("product is required", 400, "invalid_request") };
+    }
+    try {
+      const data = await this.doJSON<CreateAppResponse>("POST", "/v1/apps", {
+        name: req.name,
+        product: req.product,
+      });
+      return { data, error: null };
+    } catch (e) {
+      return { data: null, error: e instanceof OrctaPayError ? e : new OrctaPayError("unknown", 0, "unknown", e) };
+    }
+  }
+
+  /** List apps for the current organization. */
+  async listApps(): Promise<Result<App[]>> {
+    try {
+      const data = await this.doJSON<App[]>("GET", "/v1/apps", undefined);
+      return { data, error: null };
+    } catch (e) {
+      return { data: null, error: e instanceof OrctaPayError ? e : new OrctaPayError("unknown", 0, "unknown", e) };
+    }
+  }
+
+  /** Rotate an app's API key. Returns new key shown once. */
+  async rotateAppKey(appId: string): Promise<Result<RotateAppKeyResponse>> {
+    if (!appId) {
+      return { data: null, error: new OrctaPayError("appId is required", 400, "invalid_request") };
+    }
+    const path = `/v1/apps/${encodeURIComponent(appId)}/keys/rotate`;
+    try {
+      const data = await this.doJSON<RotateAppKeyResponse>("POST", path, {});
+      return { data, error: null };
+    } catch (e) {
+      return { data: null, error: e instanceof OrctaPayError ? e : new OrctaPayError("unknown", 0, "unknown", e) };
+    }
+  }
+
+  /** Alias for rotateAppKey. */
+  async rotateKey(appId: string): Promise<Result<RotateAppKeyResponse>> {
+    return this.rotateAppKey(appId);
+  }
+
+  /** Revoke an app (soft delete). */
+  async revokeApp(appId: string): Promise<Result<void>> {
+    if (!appId) {
+      return { data: null, error: new OrctaPayError("appId is required", 400, "invalid_request") };
+    }
+    const path = `/v1/apps/${encodeURIComponent(appId)}`;
+    try {
+      await this.doJSON<void>("DELETE", path, undefined);
+      return { data: undefined as unknown as void, error: null };
     } catch (e) {
       return { data: null, error: e instanceof OrctaPayError ? e : new OrctaPayError("unknown", 0, "unknown", e) };
     }

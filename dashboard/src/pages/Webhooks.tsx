@@ -1,21 +1,42 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getApiKey, getBaseUrl } from "../lib/config";
 import { formatDate } from "../lib/format";
-import { mockWebhooks } from "../lib/mock";
+import { mockWebhooks, type WebhookRow } from "../lib/mock";
 
 export function WebhooksPage() {
   const [gateway, setGateway] = useState("all");
 
+  const { data, error } = useQuery({
+    queryKey: ["webhooks", { gateway }],
+    queryFn: async () => {
+      const baseUrl = getBaseUrl().replace(/\/+$/, "");
+      const url = new URL(`${baseUrl}/v1/webhooks`);
+      if (gateway !== "all") url.searchParams.set("gateway", gateway);
+      const res = await fetch(url.toString(), {
+        headers: { Accept: "application/json", Authorization: `Bearer ${getApiKey()}` },
+      });
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      return (await res.json()) as WebhookRow[];
+    },
+    staleTime: 30_000,
+    retry: 1,
+  });
+
+  const source = data ?? mockWebhooks;
+  const showMockBanner = !!error;
+
   const rows = useMemo(() => {
-    if (gateway === "all") return mockWebhooks;
-    return mockWebhooks.filter((r) => r.gateway === gateway);
-  }, [gateway]);
+    if (gateway === "all") return source;
+    return source.filter((r) => r.gateway === gateway);
+  }, [source, gateway]);
 
   // Dedup: which aggregator_event_id appears more than once?
   const dupIds = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const r of mockWebhooks) counts.set(r.aggregator_event_id, (counts.get(r.aggregator_event_id) || 0) + 1);
+    for (const r of source) counts.set(r.aggregator_event_id, (counts.get(r.aggregator_event_id) || 0) + 1);
     return new Set([...counts.entries()].filter(([, c]) => c > 1).map(([k]) => k));
-  }, []);
+  }, [source]);
 
   return (
     <div>
@@ -36,6 +57,11 @@ export function WebhooksPage() {
           </select>
           <span className="muted">Dedup: <code>UNIQUE (aggregator_event_id)</code> — highlighted rows share an event id.</span>
         </div>
+        {showMockBanner ? (
+          <div style={{ marginTop: 10, background: "#fefce8", border: "1px solid #fde68a", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
+            Live API unreachable — showing mock data
+          </div>
+        ) : null}
       </div>
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>

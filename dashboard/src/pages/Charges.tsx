@@ -1,7 +1,33 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { makeClient } from "../lib/api";
+import { getApiKey, getBaseUrl } from "../lib/config";
 import { formatDate, formatGHS } from "../lib/format";
 import { mockCharges, type ChargeRow } from "../lib/mock";
+
+function useLiveCharges(params: { q: string; product: string; gateway: string; status: string }) {
+  return useQuery({
+    queryKey: ["charges", params],
+    queryFn: async () => {
+      // Try live API — GET /v1/charges is not yet implemented on the service,
+      // so this will 404/network-error when offline and fall back to mock.
+      const baseUrl = getBaseUrl().replace(/\/+$/, "");
+      const url = new URL(`${baseUrl}/v1/charges`);
+      if (params.product !== "all") url.searchParams.set("product", params.product);
+      if (params.gateway !== "all") url.searchParams.set("gateway", params.gateway);
+      if (params.status !== "all") url.searchParams.set("status", params.status);
+      if (params.q) url.searchParams.set("q", params.q);
+      const res = await fetch(url.toString(), {
+        headers: { Accept: "application/json", Authorization: `Bearer ${getApiKey()}` },
+      });
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      const data = (await res.json()) as ChargeRow[];
+      return data;
+    },
+    staleTime: 30_000,
+    retry: 1,
+  });
+}
 
 export function ChargesPage() {
   const [q, setQ] = useState("");
@@ -9,11 +35,10 @@ export function ChargesPage() {
   const [gateway, setGateway] = useState("all");
   const [status, setStatus] = useState("all");
   const [selected, setSelected] = useState<ChargeRow | null>(null);
-  const [liveStatus, setLiveStatus] = useState<unknown>(null);
-  const [liveError, setLiveError] = useState<string | null>(null);
-  const [liveLoading, setLiveLoading] = useState(false);
 
-  const rows = useMemo(() => {
+  const liveQuery = useLiveCharges({ q, product, gateway, status });
+
+  const mockFiltered = useMemo(() => {
     return mockCharges.filter((r) => {
       if (q && !r.ref.toLowerCase().includes(q.toLowerCase())) return false;
       if (product !== "all" && r.product !== product) return false;
@@ -23,11 +48,8 @@ export function ChargesPage() {
     });
   }, [q, product, gateway, status]);
 
-  const open = (r: ChargeRow) => {
-    setSelected(r);
-    setLiveStatus(null);
-    setLiveError(null);
-  };
+  const rows = liveQuery.data ?? mockFiltered;
+  const showMockBanner = !!liveQuery.error;
 
   return (
     <div>
@@ -35,7 +57,7 @@ export function ChargesPage() {
         <h2>Charges — payment_intents</h2>
         <p className="muted">
           Thin view over <code>POST /v1/charges</code> / <code>GET /v1/charges/{"{ref}"}/status</code>. Mock data when API unreachable;
-          detail calls live <code>GetChargeStatus</code> when <code>VITE_ORCTA_PAY_URL</code> is reachable.
+          detail calls live <code>GetChargeStatus</code> via TanStack Query when <code>VITE_ORCTA_PAY_URL</code> is reachable.
         </p>
         <div className="row" style={{ marginTop: 10 }}>
           <input className="input" placeholder="Search by ref…" value={q} onChange={(e) => setQ(e.target.value)} style={{ flex: 1, minWidth: 220 }} />
@@ -57,6 +79,11 @@ export function ChargesPage() {
             <option value="failed">failed</option>
           </select>
         </div>
+        {showMockBanner ? (
+          <div style={{ marginTop: 10, background: "#fefce8", border: "1px solid #fde68a", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
+            Live API unreachable — showing mock data
+          </div>
+        ) : null}
       </div>
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
@@ -74,7 +101,7 @@ export function ChargesPage() {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.ref} onClick={() => open(r)} style={{ cursor: "pointer" }}>
+                <tr key={r.ref} onClick={() => setSelected(r)} style={{ cursor: "pointer" }}>
                   <td className="mono" title={r.ref}>{r.ref}</td>
                   <td>{r.product}</td>
                   <td>{r.gateway}</td>
@@ -91,48 +118,23 @@ export function ChargesPage() {
         </div>
       </div>
 
-      {selected && (
-        <ChargeDetail
-          row={selected}
-          liveStatus={liveStatus}
-          liveError={liveError}
-          liveLoading={liveLoading}
-          onFetch={async () => {
-            setLiveLoading(true);
-            setLiveError(null);
-            const client = makeClient();
-            const { data, error } = await client.getChargeStatus(selected.ref);
-            if (error) setLiveError(`${error.code} (${error.statusCode}): ${error.message}`);
-            else setLiveStatus(data);
-            setLiveLoading(false);
-          }}
-          onClose={() => setSelected(null)}
-        />
-      )}
+      {selected ? <ChargeDetail row={selected} onClose={() => setSelected(null)} /> : null}
     </div>
   );
 }
 
-function ChargeDetail({
-  row,
-  liveStatus,
-  liveError,
-  liveLoading,
-  onFetch,
-  onClose,
-}: {
-  row: ChargeRow;
-  liveStatus: unknown;
-  liveError: string | null;
-  liveLoading: boolean;
-  onFetch: () => void;
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    // Auto-fetch once when opened to demonstrate wiring.
-    void onFetch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [row.ref]);
+function ChargeDetail({ row, onClose }: { row: ChargeRow; onClose: () => void }) {
+  const { data, error, isFetching, refetch } = useQuery({
+    queryKey: ["chargeStatus", row.ref],
+    queryFn: async () => {
+      const client = makeClient();
+      const { data: d, error: e } = await client.getChargeStatus(row.ref);
+      if (e) throw e;
+      return d;
+    },
+    staleTime: 30_000,
+    retry: 1,
+  });
 
   return (
     <div className="card">
@@ -157,12 +159,12 @@ function ChargeDetail({
         <div>
           <h3 style={{ fontSize: 13, margin: "0 0 6px" }}>GetChargeStatus (live)</h3>
           <div className="row" style={{ marginBottom: 8 }}>
-            <button className="btn" onClick={onFetch} disabled={liveLoading}>{liveLoading ? "Fetching…" : "Fetch via OrctaPay.getChargeStatus"}</button>
+            <button className="btn" onClick={() => void refetch()} disabled={isFetching}>{isFetching ? "Fetching…" : "Fetch via OrctaPay.getChargeStatus"}</button>
             <span className="muted">Calls <code>GET /v1/charges/{"{ref}"}/status</code> through the TS client.</span>
           </div>
-          {liveError ? <pre style={{ background: "#fef2f2", padding: 10, borderRadius: 8, fontSize: 12, whiteSpace: "pre-wrap" }}>{liveError}</pre> : null}
-          {liveStatus != null ? <pre style={{ background: "#f1f5f9", padding: 10, borderRadius: 8, fontSize: 12, overflow: "auto" }}>{JSON.stringify(liveStatus, null, 2)}</pre> : null}
-          {liveStatus == null && !liveError && !liveLoading ? <p className="muted">No live response yet. Click fetch — if the API is down you&apos;ll see a typed <code>OrctaPayError</code>.</p> : null}
+          {error ? <pre style={{ background: "#fef2f2", padding: 10, borderRadius: 8, fontSize: 12, whiteSpace: "pre-wrap" }}>{String((error as Error).message || error)}</pre> : null}
+          {data != null ? <pre style={{ background: "#f1f5f9", padding: 10, borderRadius: 8, fontSize: 12, overflow: "auto" }}>{JSON.stringify(data, null, 2)}</pre> : null}
+          {data == null && !error && !isFetching ? <p className="muted">No live response yet. If the API is down you&apos;ll see a typed <code>OrctaPayError</code>.</p> : null}
         </div>
       </div>
 

@@ -45,6 +45,16 @@ func NewRouter(app *platform.App) http.Handler {
 		r.Post("/charges", handleCreateCharge(app))
 		r.Get("/charges/{ref}/status", handleChargeStatus(app))
 		r.Post("/payouts", handleCreatePayout(app))
+
+		r.With(bearerAuth(app)).Post("/apps", handleCreateApp(app))
+		r.With(bearerAuth(app)).Get("/apps", handleListApps(app))
+		r.With(bearerAuth(app)).Get("/apps/{id}", handleGetApp(app))
+		r.With(bearerAuth(app)).Post("/apps/{id}/keys/rotate", handleRotateAppKey(app))
+		r.With(bearerAuth(app)).Delete("/apps/{id}", handleRevokeApp(app))
+		// OpenAPI uses {appID}; support both forms.
+		r.With(bearerAuth(app)).Get("/apps/{appID}", handleGetApp(app))
+		r.With(bearerAuth(app)).Post("/apps/{appID}/keys/rotate", handleRotateAppKey(app))
+		r.With(bearerAuth(app)).Delete("/apps/{appID}", handleRevokeApp(app))
 	})
 	r.Post("/webhooks/hubtel", handleWebhook(app, "hubtel"))
 	r.Post("/webhooks/paystack", handleWebhook(app, "paystack"))

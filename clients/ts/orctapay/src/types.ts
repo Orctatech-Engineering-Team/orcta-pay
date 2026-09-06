@@ -63,3 +63,36 @@ export interface PayoutResult {
   total_pesewas: number;
   created_at: string;
 }
+
+/** Request for POST /v1/apps. */
+export interface CreateAppRequest {
+  name: string;
+  product: string;
+}
+
+/** Response from POST /v1/apps — api_key shown once. */
+export interface CreateAppResponse {
+  id: string;
+  name: string;
+  product: string;
+  api_key: string;
+  prefix: string;
+}
+
+/** App record from GET /v1/apps. */
+export interface App {
+  id: string;
+  name: string;
+  product: string;
+  prefix: string;
+  created_at: string;
+  last_used_at?: string | null;
+  revoked?: boolean;
+  revoked_at?: string | null;
+}
+
+/** Response from POST /v1/apps/{id}/keys/rotate. */
+export interface RotateAppKeyResponse {
+  api_key: string;
+  prefix?: string;
+}

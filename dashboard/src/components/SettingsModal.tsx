@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { getApiKey, getBaseUrl, getProduct, setApiKey, setBaseUrl, setProduct } from "../lib/config";
+import { getApiKey, getBaseUrl, getProduct, maskKey, setApiKey, setBaseUrl, setProduct } from "../lib/config";
 
 export function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [apiKey, setApiKeyState] = useState(() => getApiKey());
+  const currentKey = getApiKey();
+  const [apiKey, setApiKeyState] = useState(() => currentKey);
   const [baseUrl, setBaseUrlState] = useState(() => getBaseUrl());
   const [product, setProductState] = useState(() => getProduct());
 
@@ -13,7 +14,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     setBaseUrl(baseUrl.trim());
     setProduct(product.trim().toLowerCase());
     onClose();
-    // Reload so the client picks up new env without stale closure.
+    // Reload so the client and TanStack queries pick up new key/baseUrl without stale closure.
     window.location.reload();
   };
 
@@ -26,6 +27,10 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
           rendered to <code>.env</code> as <code>VITE_ORCTA_PAY_API_KEY</code>. This modal overrides via{" "}
           <code>localStorage</code> for demo — same shape any Orcta service uses with the TS client.
         </p>
+
+        <div style={{ marginTop: 10, background: "#f8fafc", border: "1px solid #e2e8f0", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
+          Current key: <code>{maskKey(currentKey)}</code> {currentKey ? `· ${currentKey.slice(0, 12)}…` : ""} — from <code>VITE_ORCTA_PAY_API_KEY</code> or localStorage. After creating an app, paste its <code>pay_live_…</code> here.
+        </div>
 
         <label style={{ display: "block", marginTop: 12, fontSize: 13, fontWeight: 600 }}>API key (Bearer)</label>
         <input

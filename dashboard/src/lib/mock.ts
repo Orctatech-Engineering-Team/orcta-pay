@@ -75,6 +75,16 @@ export type WebhookRow = {
   processed_at: string | null;
 };
 
+export type AppRow = {
+  id: string;
+  name: string;
+  product: string;
+  prefix: string;
+  created_at: string;
+  last_used_at: string | null;
+  revoked: boolean;
+};
+
 function ulidLike(seed: number): string {
   const base = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
   return base.slice(0, 22) + String(seed).padStart(4, "0");
@@ -406,5 +416,35 @@ export const mockWebhooks: WebhookRow[] = [
     payload: { externalref: mockCharges[2]!.ref, status: "failed", reason: "insufficient_funds" },
     received_at: iso(3600_000 * 23),
     processed_at: iso(3600_000 * 23 - 10_000),
+  },
+];
+
+export const mockApps: AppRow[] = [
+  {
+    id: "app_01ARZ3NDEKTSV4RR0001",
+    name: "orctago",
+    product: "orctago",
+    prefix: "pay_live_orctago_abc1",
+    created_at: iso(3600_000 * 48),
+    last_used_at: iso(3600_000 * 1),
+    revoked: false,
+  },
+  {
+    id: "app_01ARZ3NDEKTSV4RR0002",
+    name: "pos",
+    product: "pos",
+    prefix: "pay_live_pos_xyz2",
+    created_at: iso(3600_000 * 72),
+    last_used_at: iso(3600_000 * 5),
+    revoked: false,
+  },
+  {
+    id: "app_01ARZ3NDEKTSV4RR0003",
+    name: "legacy-pos",
+    product: "pos",
+    prefix: "pay_live_pos_old9",
+    created_at: iso(3600_000 * 240),
+    last_used_at: null,
+    revoked: true,
   },
 ];

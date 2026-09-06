@@ -44,6 +44,12 @@ func (e Environment) Valid() bool {
 	}
 }
 
+// AuthConfig holds API key and Vault settings.
+type AuthConfig struct {
+	APIKey    string
+	VaultAddr string
+}
+
 // Config is built once in main and passed down.
 type Config struct {
 	Environment Environment
@@ -53,6 +59,7 @@ type Config struct {
 	Observ      ObservabilityConfig
 	Payments    PaymentsConfig
 	Worker      WorkerConfig
+	Auth        AuthConfig
 }
 
 // HTTPConfig configures the API server.
@@ -186,6 +193,10 @@ func Load() (Config, error) {
 	sampleRatio, err := floatVar("OTEL_TRACE_SAMPLE_RATIO", defaultTraceSample)
 	errs = append(errs, err)
 
+	apiKey := os.Getenv("ORCTA_PAY_API_KEY")
+	if apiKey == "" {
+		apiKey = os.Getenv("AUTH_API_KEY")
+	}
 	cfg := Config{
 		Environment: env,
 		HTTP: HTTPConfig{
@@ -221,6 +232,10 @@ func Load() (Config, error) {
 			LogLevel:         stringVar("LOG_LEVEL", defaultLogLevel),
 			OTLPEndpoint:     os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
 			TraceSampleRatio: sampleRatio,
+		},
+		Auth: AuthConfig{
+			APIKey:    apiKey,
+			VaultAddr: os.Getenv("ORCTA_PAY_VAULT_ADDR"),
 		},
 	}
 	errs = append(errs, cfg.Validate())

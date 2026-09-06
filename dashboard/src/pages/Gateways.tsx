@@ -1,9 +1,28 @@
-import { mockGateways } from "../lib/mock";
+import { useQuery } from "@tanstack/react-query";
+import { getApiKey, getBaseUrl } from "../lib/config";
+import { mockGateways, type GatewayHealthRow } from "../lib/mock";
 
 export function GatewaysPage() {
+  const { data, error } = useQuery({
+    queryKey: ["gateways"],
+    queryFn: async () => {
+      const baseUrl = getBaseUrl().replace(/\/+$/, "");
+      const res = await fetch(`${baseUrl}/v1/gateways/health`, {
+        headers: { Accept: "application/json", Authorization: `Bearer ${getApiKey()}` },
+      });
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      return (await res.json()) as GatewayHealthRow[];
+    },
+    staleTime: 30_000,
+    retry: 1,
+  });
+
+  const rows = data ?? mockGateways;
+  const showMockBanner = !!error;
+
   // Group by channel for ranking view.
-  const byChannel = new Map<string, typeof mockGateways>();
-  for (const r of mockGateways) {
+  const byChannel = new Map<string, typeof rows>();
+  for (const r of rows) {
     const arr = byChannel.get(r.channel) || [];
     arr.push(r);
     byChannel.set(r.channel, arr);
@@ -24,9 +43,14 @@ export function GatewaysPage() {
           remaining candidates; sync <code>Initiate</code> errors fail over to next-ranked gateway, async failures reconcile via{" "}
           <code>GetTransactionStatus</code> (no cross-gateway retry — avoids double-charge).
         </div>
+        {showMockBanner ? (
+          <div style={{ marginTop: 10, background: "#fefce8", border: "1px solid #fde68a", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
+            Live API unreachable — showing mock data
+          </div>
+        ) : null}
       </div>
 
-      {[...byChannel.entries()].map(([channel, rows]) => (
+      {[...byChannel.entries()].map(([channel, chRows]) => (
         <div key={channel} className="card" style={{ padding: 0, overflow: "hidden" }}>
           <div style={{ padding: "10px 14px", borderBottom: "1px solid #e2e8f0", background: "#f8fafc" }}>
             <strong style={{ fontSize: 13 }}>Channel: {channel}</strong>{" "}
@@ -47,7 +71,7 @@ export function GatewaysPage() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
+                {chRows.map((r) => (
                   <tr key={`${r.gateway}-${r.channel}`} style={{ opacity: r.eligible ? 1 : 0.55 }}>
                     <td><strong>#{r.rank === 99 ? "—" : r.rank}</strong></td>
                     <td>{r.gateway}</td>

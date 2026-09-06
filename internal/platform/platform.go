@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/valkey-io/valkey-go"
 
+	"github.com/orctatech/orcta-pay/internal/apps"
 	"github.com/orctatech/orcta-pay/internal/charges"
 	"github.com/orctatech/orcta-pay/internal/config"
 	"github.com/orctatech/orcta-pay/internal/gateway"
@@ -25,6 +26,7 @@ type App struct {
 	Charges *charges.Service
 	Payouts *payouts.Service
 	Ledger  *ledger.Service
+	Apps    *apps.Service
 	Router  *gateway.ChargerRouter
 	Pool    *pgxpool.Pool
 	Observ  *observability.Provider
@@ -72,6 +74,7 @@ func Build(ctx context.Context, cfg config.Config) (*App, error) {
 		Charges: charges.NewService(store, router),
 		Payouts: payouts.NewService(store, router, payouts.WithLedger(store), payouts.WithLocker(locker)),
 		Ledger:  ledger.NewService(store),
+		Apps:    apps.NewService(store, cfg.Environment),
 		Router:  router,
 		Pool:    pool,
 		Observ:  observ,

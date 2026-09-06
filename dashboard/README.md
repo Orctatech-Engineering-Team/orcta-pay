@@ -1,6 +1,6 @@
 # Orcta Pay Dashboard
 
-Minimal operator dashboard for Orcta Pay — Charges, Payouts, Ledger, Gateways, Webhooks. Thin views over the same API any Orcta service uses via the TypeScript client.
+Minimal operator dashboard for Orcta Pay — Charges, Payouts, Ledger, Gateways, Apps, Webhooks. Thin views over the same API any Orcta service uses via the TypeScript client. TanStack Query for data fetching with mock fallback when the API is unreachable.
 
 ## Any Orcta service is one client
 
@@ -45,30 +45,45 @@ cp .env.example .env
 | `VITE_ORCTA_PAY_API_KEY` | Per-product Bearer key (Vault `secret/orcta/orcta-pay/keys/{product}`) |
 | `VITE_ORCTA_PAY_PRODUCT` | Product hint for display (default `orctago`) |
 
-For demo without `.env`, click **Settings** in the header and paste any product's key — stored in `localStorage` as `orcta_pay_api_key` / `orcta_pay_url` / `orcta_pay_product`. Env is the fallback; localStorage wins.
+For demo without `.env`, click **Settings** in the header and paste any product's key — stored in `localStorage` as `orcta_pay_api_key` / `orcta_pay_url` / `orcta_pay_product`. Env is the fallback; localStorage wins. The Settings modal now also shows the masked active app key and writes through to TanStack Query's client via `makeClient()` (reload picks up new key/baseUrl).
 
-The header shows a green/red dot by pinging `GET /healthz` (fallback `/readyz`) and the masked active key. When the API is unreachable, every page falls back to mock data but keeps the `OrctaPay.getChargeStatus` wiring live — click a charge to see a typed `OrctaPayError`.
+The header shows a green/red dot via TanStack Query (`useQuery(["health", baseUrl])` polling `GET /healthz` fallback `/readyz` every 15s) and the masked active key. When the API is unreachable, every page falls back to mock data but keeps the `OrctaPay` wiring live — click a charge to see a typed `OrctaPayError`.
+
+## Apps — API keys
+
+Orcta Pay runs on the VPS. The dashboard fetches API keys from Vault (`secret/orcta/orcta-pay/keys/{product}`) so each service can create an app:
+
+- **Create an app**: Dashboard → **Apps** → **Create app** → enter `name` (e.g. `orctago`, `pos`) and `product` → `POST /v1/apps` via `client.createApp({name, product})` → response `{id, name, product, api_key, prefix}`. The `api_key` (`pay_live_…`) is shown once in a copyable code block — **Copy now — shown once** — with `pnpm add @orctatech/orcta-pay` snippet and `ORCTA_PAY_API_KEY=pay_live_…` for the service to plug into its library.
+- **List**: `GET /v1/apps` via `client.listApps()` → table of `name`, `product`, `prefix`, `created_at`, `last_used_at`, `revoked`. TanStack Query `["apps"]` with staleTime 30s, retry 1, fallback to `mockApps` and banner “Live API unreachable — showing mock data” when offline.
+- **Rotate / Revoke**: Per-row **Rotate** (`POST /v1/apps/{id}/keys/rotate` → `client.rotateAppKey(appId)` → new `api_key` shown once) and **Revoke** (`DELETE /v1/apps/{id}` → `client.revokeApp(appId)`). Mutations invalidate `["apps"]`.
+
+Before the service lands, the dashboard runs against `mockApps` so it builds without a running API.
+
+Vault → env: `secret/orcta/orcta-pay/keys/{product}` → rendered to `.env` as `ORCTA_PAY_API_KEY` (or pasted in Settings → localStorage).
 
 ## Pages
 
-- **Charges** — `payment_intents` (ref, product, gateway, amount as GHS, status pending/succeeded/failed, created_at). Search by ref, filter by product/gateway/status. Click row → detail with `GetChargeStatus` and raw gateway event.
-- **Payouts** — `payout_batches` (id, batch_date, status running/completed/partially_failed, vendor count, gross/commission/net). Click → per-vendor lines with reservation state `open→settled/released` and age.
-- **Ledger** — `vendor_ledger_entries` + `platform_commission_entries` with `value_time`/`booking_time`/`settlement_time` (null until `Verify` or reconciliation confirms). Filter by vendor. Verifies `sum(debits + credits) + net = 0` over the visible slice.
-- **Gateways** — Valkey ranking table per `gateway×channel`: rolling success rate, p95 latency, circuit state (closed/open/half_open), cost. Ranking is success-rate floor → cost tiebreak; open circuits excluded. See `PAYMENTS_SERVICE_DESIGN.md:4`.
-- **Webhooks** — `webhook_inbox` (aggregator_event_id, kind, payload, received_at, processed_at) with `UNIQUE(aggregator_event_id)` dedup highlight — duplicates return 200 without reprocessing.
+- **Charges** — `payment_intents` (ref, product, gateway, amount as GHS, status pending/succeeded/failed, created_at). Search by ref, filter by product/gateway/status via TanStack Query `["charges", {q, product, gateway, status}]`. `useQuery` tries `GET /v1/charges` then falls back to `mockCharges`; detail uses `useQuery(["chargeStatus", ref], () => client.getChargeStatus(ref))`. Banner “Live API unreachable — showing mock data” on query error.
+- **Payouts** — `payout_batches` via `useQuery(["payouts"])` → `GET /v1/payouts`, fallback to `mockPayoutBatches` with banner. Click → per-vendor lines with reservation state `open→settled/released` and age.
+- **Ledger** — `vendor_ledger_entries` + `platform_commission_entries` via `useQuery(["ledger", {vendor, kind}])` → `GET /v1/ledger`, fallback to `mockLedger`. Filter by vendor. Verifies `sum(debits + credits) + net = 0` over the visible slice.
+- **Gateways** — Valkey ranking via `useQuery(["gateways"])` → `GET /v1/gateways/health`, fallback to `mockGateways`. Ranking is success-rate floor → cost tiebreak; open circuits excluded. See `PAYMENTS_SERVICE_DESIGN.md:4`.
+- **Apps** — API keys (`POST /v1/apps`, `GET /v1/apps`, `POST /v1/apps/{id}/keys/rotate`, `DELETE /v1/apps/{id}`) via `createApp`/`listApps`/`rotateAppKey`/`revokeApp`. TanStack `["apps"]` with mock fallback.
+- **Webhooks** — `webhook_inbox` via `useQuery(["webhooks", {gateway}])` → `GET /v1/webhooks`, fallback to `mockWebhooks` with banner and `UNIQUE(aggregator_event_id)` dedup highlight.
 
 ## Develop
 
 ```bash
-npm install
-npm run dev      # http://localhost:5173, proxy /v1 and /healthz to VITE_ORCTA_PAY_URL
-npm run build    # tsc + vite build
-npm run preview  # preview prod build on :5173
-npm run lint     # tsc --noEmit
+pnpm install
+pnpm add @tanstack/react-query            # already in package.json
+pnpm add -D @tanstack/react-query-devtools # optional
+pnpm run dev      # http://localhost:5173, proxy /v1 and /healthz to VITE_ORCTA_PAY_URL
+pnpm run build    # tsc && vite build
+pnpm run preview  # preview prod build on :5173
+pnpm run lint     # tsc --noEmit
 ```
 
 `vite.config.ts` proxies `/v1`, `/healthz`, `/readyz` to `VITE_ORCTA_PAY_URL` (or `ORCTA_PAY_URL`) for local dev so the browser avoids CORS.
 
 ## Stack
 
-Vite + React 18 + TypeScript (strict) + React Router. Plain CSS — no Tailwind build step. Local path dep `file:../clients/ts/orctapay` → `from "@orctatech/orcta-pay"`.
+Vite + React 18 + TypeScript (strict) + React Router + TanStack Query (staleTime 30s, retry 1). Plain CSS — no Tailwind build step. Local path dep `file:../clients/ts/orctapay` → `from "@orctatech/orcta-pay"`. TanStack Query wraps `App.tsx` with `QueryClientProvider`; pages use `useQuery`/`useMutation` with `{data, error}` from `OrctaPay` (no throw) — `if (error) throw error` to surface in query.

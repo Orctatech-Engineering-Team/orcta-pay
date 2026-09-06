@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getApiKey, getBaseUrl } from "../lib/config";
 import { formatDate, formatGHS } from "../lib/format";
 import { mockLedger, type LedgerEntry } from "../lib/mock";
 
@@ -16,13 +18,33 @@ export function LedgerPage() {
   const [vendor, setVendor] = useState("all");
   const [kind, setKind] = useState<"all" | "vendor" | "commission">("all");
 
+  const { data, error } = useQuery({
+    queryKey: ["ledger", { vendor, kind }],
+    queryFn: async () => {
+      const baseUrl = getBaseUrl().replace(/\/+$/, "");
+      const url = new URL(`${baseUrl}/v1/ledger`);
+      if (vendor !== "all") url.searchParams.set("vendor_id", vendor);
+      if (kind !== "all") url.searchParams.set("kind", kind);
+      const res = await fetch(url.toString(), {
+        headers: { Accept: "application/json", Authorization: `Bearer ${getApiKey()}` },
+      });
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      return (await res.json()) as LedgerEntry[];
+    },
+    staleTime: 30_000,
+    retry: 1,
+  });
+
+  const source = data ?? mockLedger;
+  const showMockBanner = !!error;
+
   const filtered = useMemo(() => {
-    return mockLedger.filter((e) => {
+    return source.filter((e) => {
       if (vendor !== "all" && e.vendor_id !== vendor) return false;
       if (kind !== "all" && e.kind !== kind) return false;
       return true;
     });
-  }, [vendor, kind]);
+  }, [source, vendor, kind]);
 
   const vendors = useMemo(() => [...new Set(mockLedger.map((e) => e.vendor_id))], []);
   const totals = sumFor(filtered);
@@ -54,6 +76,11 @@ export function LedgerPage() {
           </select>
           <span className="muted">Showing {filtered.length} entries</span>
         </div>
+        {showMockBanner ? (
+          <div style={{ marginTop: 10, background: "#fefce8", border: "1px solid #fde68a", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
+            Live API unreachable — showing mock data
+          </div>
+        ) : null}
       </div>
 
       <div className="card">

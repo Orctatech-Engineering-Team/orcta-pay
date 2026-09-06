@@ -10,4 +10,8 @@ export type {
   CreatePayoutRequest,
   PayoutEntry,
   PayoutResult,
+  CreateAppRequest,
+  CreateAppResponse,
+  App,
+  RotateAppKeyResponse,
 } from "./types.js";

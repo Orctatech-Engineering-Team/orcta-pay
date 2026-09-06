@@ -1,31 +1,22 @@
 import { NavLink } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { checkHealth, type HealthState } from "../lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { checkHealth } from "../lib/api";
 import { getApiKey, getBaseUrl, maskKey } from "../lib/config";
 
 export function Layout({ children, onOpenSettings }: { children: React.ReactNode; onOpenSettings: () => void }) {
-  const [health, setHealth] = useState<HealthState>("checking");
-  const [detail, setDetail] = useState("checking…");
   const apiKey = getApiKey();
   const baseUrl = getBaseUrl();
 
-  useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      setHealth("checking");
-      const res = await checkHealth();
-      if (!cancelled) {
-        setHealth(res.state);
-        setDetail(res.detail);
-      }
-    };
-    void run();
-    const id = setInterval(() => void run(), 15000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [baseUrl]);
+  const { data: healthData } = useQuery({
+    queryKey: ["health", baseUrl],
+    queryFn: () => checkHealth(),
+    refetchInterval: 15000,
+    staleTime: 10_000,
+    retry: 1,
+  });
+
+  const health = healthData?.state ?? "checking";
+  const detail = healthData?.detail ?? "checking…";
 
   const healthLabel = health === "ok" ? "reachable" : health === "down" ? "unreachable" : health;
   const dotClass = health === "ok" ? "ok" : health === "down" ? "down" : "checking";
@@ -39,6 +30,7 @@ export function Layout({ children, onOpenSettings }: { children: React.ReactNode
           <NavLink to="/payouts" className={({ isActive }) => (isActive ? "active" : "")}>Payouts</NavLink>
           <NavLink to="/ledger" className={({ isActive }) => (isActive ? "active" : "")}>Ledger</NavLink>
           <NavLink to="/gateways" className={({ isActive }) => (isActive ? "active" : "")}>Gateways</NavLink>
+          <NavLink to="/apps" className={({ isActive }) => (isActive ? "active" : "")}>Apps</NavLink>
           <NavLink to="/webhooks" className={({ isActive }) => (isActive ? "active" : "")}>Webhooks</NavLink>
         </nav>
         <div className="spacer" />

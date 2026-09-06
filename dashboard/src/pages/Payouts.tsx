@@ -1,9 +1,28 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getApiKey, getBaseUrl } from "../lib/config";
 import { formatDate, formatGHS, ageMinutes } from "../lib/format";
 import { mockPayoutBatches, type PayoutBatchRow } from "../lib/mock";
 
 export function PayoutsPage() {
   const [selected, setSelected] = useState<PayoutBatchRow | null>(null);
+
+  const { data, error } = useQuery({
+    queryKey: ["payouts"],
+    queryFn: async () => {
+      const baseUrl = getBaseUrl().replace(/\/+$/, "");
+      const res = await fetch(`${baseUrl}/v1/payouts`, {
+        headers: { Accept: "application/json", Authorization: `Bearer ${getApiKey()}` },
+      });
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      return (await res.json()) as PayoutBatchRow[];
+    },
+    staleTime: 30_000,
+    retry: 1,
+  });
+
+  const batches = data ?? mockPayoutBatches;
+  const showMockBanner = !!error;
 
   return (
     <div>
@@ -13,6 +32,11 @@ export function PayoutsPage() {
           View over <code>payout_batches</code> + <code>payout_reservations</code>. Mock data when API unreachable. Click a batch for
           per-vendor lines and reservation age (open → settled / released).
         </p>
+        {showMockBanner ? (
+          <div style={{ marginTop: 10, background: "#fefce8", border: "1px solid #fde68a", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
+            Live API unreachable — showing mock data
+          </div>
+        ) : null}
       </div>
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
@@ -31,7 +55,7 @@ export function PayoutsPage() {
               </tr>
             </thead>
             <tbody>
-              {mockPayoutBatches.map((b) => (
+              {batches.map((b) => (
                 <tr key={b.id} onClick={() => setSelected(b)} style={{ cursor: "pointer" }}>
                   <td className="mono">{b.id}</td>
                   <td>{b.batch_date}</td>
