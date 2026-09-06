@@ -45,13 +45,8 @@ export function WebhooksPage() {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between" }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 16 }}>Webhook inbox</h2>
-            <p className="muted" style={{ margin: "4px 0 0" }}>
-              <code>webhook_inbox</code> (<code>aggregator_event_id</code> UNIQUE). Payload is a trigger, not truth. Handler verifies HMAC (constant-time), dedups on <code>aggregator_event_id</code>, acks 200 durably, then calls <code>GetTransactionStatus</code> before writing the ledger. TanStack Query <code>["webhooks",{`{gateway}`}]</code> → <code>GET /v1/webhooks</code> with mock fallback.
-            </p>
-          </div>
-          <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>{isFetching ? "fetching…" : error ? "mock" : "live"}</span>
+          <h2 style={{ margin: 0 }}>Webhooks</h2>
+          <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{isFetching ? "fetching..." : error ? "mock" : "live"}</span>
         </div>
         <div className="row" style={{ marginTop: 12 }}>
           <Select.Root value={gateway} onValueChange={(v: unknown) => setGateway(v as string)}>
@@ -81,16 +76,16 @@ export function WebhooksPage() {
         <div className="stat">
           <span className="stat-label">Dedup groups</span>
           <span className="stat-value">{deduped}</span>
-          <span className="stat-meta">Redelivery is expected, not anomalous. Duplicates return 200 without reprocessing</span>
+          <span className="stat-meta">Redelivery is expected. Duplicates return 200 without reprocessing</span>
         </div>
         <div className="stat">
           <span className="stat-label">Unprocessed</span>
           <span className="stat-value">{unprocessed}</span>
-          <span className="stat-meta">Null until async processing completes. Backstop reconciliation poll covers never-arrived webhooks</span>
+          <span className="stat-meta">Null until processing completes</span>
         </div>
         <div className="stat">
           <span className="stat-label">Verification</span>
-          <span className="stat-meta" style={{ marginTop: 4 }}>Paystack <code>x-paystack-signature</code> HMAC SHA512 constant-time. Moolre has no webhook signature, dedup + <code>GetTransactionStatus</code> is the check. Absence is valid <code>pending</code>.</span>
+          <span className="stat-meta" style={{ marginTop: 4 }}>Paystack: HMAC SHA512 constant-time. Moolre: dedup + status check.</span>
         </div>
       </div>
 
@@ -145,9 +140,9 @@ export function WebhooksPage() {
       <div className="card">
         <h2>Notes</h2>
         <ul style={{ fontSize: 13, color: "var(--color-ink-muted)", margin: "6px 0 0", paddingLeft: 18, overflowWrap: "anywhere" }}>
-          <li>Moolre has no published webhook signature, dedup plus <code>GetTransactionStatus</code> is the check.</li>
-          <li>Paystack: <code>x-paystack-signature</code> HMAC SHA512 over raw body, constant-time compare. Reject unsigned, logged 401.</li>
-          <li>Absence within the expected window is valid <code>pending</code>, not an error. Backstop reconciliation poll covers never-arrived webhooks.</li>
+          <li>Moolre: no webhook signature. Dedup + status polling is the check.</li>
+          <li>Paystack: <code>x-paystack-signature</code> HMAC SHA512, constant-time.</li>
+          <li>Absence within the expected window is valid <code>pending</code>.</li>
         </ul>
       </div>
     </div>

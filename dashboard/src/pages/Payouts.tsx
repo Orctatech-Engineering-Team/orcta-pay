@@ -38,13 +38,8 @@ export function PayoutsPage() {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between" }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 16 }}>Payout batches</h2>
-            <p className="muted" style={{ margin: "4px 0 0" }}>
-              View over <code>payout_batches</code> + <code>payout_reservations</code>. TanStack Query <code>["payouts"]</code> → <code>GET /v1/payouts</code>, fallback to mock. Click a batch for per-vendor lines and reservation age (open → settled / released).
-            </p>
-          </div>
-          <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>{isFetching ? "fetching…" : error ? "mock" : "live"}</span>
+          <h2 style={{ margin: 0 }}>Payout batches</h2>
+          <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{isFetching ? "fetching..." : error ? "mock" : "live"}</span>
         </div>
         {showMockBanner ? (
           <div style={{ marginTop: 10, background: "var(--color-warn-soft)", border: "1px solid var(--color-warn-line)", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>

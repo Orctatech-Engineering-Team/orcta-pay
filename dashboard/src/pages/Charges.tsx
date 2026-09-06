@@ -62,13 +62,8 @@ export function ChargesPage() {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between" }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 16 }}>Charges, payment_intents</h2>
-            <p className="muted" style={{ margin: "4px 0 0" }}>
-              Thin view over <code>POST /v1/charges</code> / <code>GET /v1/charges/{"{ref}"}/status</code>. TanStack Query tries live via <code>GET /v1/charges</code>, mock when unreachable. Filter by product, gateway, status. Scope from rail.
-            </p>
-          </div>
-          <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>{liveQuery.isFetching ? "fetching…" : liveQuery.error ? "mock" : "live"}</span>
+          <h2 style={{ margin: 0 }}>Charges</h2>
+          <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{liveQuery.isFetching ? "fetching..." : liveQuery.error ? "mock" : "live"}</span>
         </div>
         <div className="row" style={{ marginTop: 12 }}>
           <Input className="input" placeholder="Search by ref…" value={q} onChange={(e) => setQ(e.target.value)} style={{ flex: 1, minWidth: 220 }} />
@@ -115,7 +110,7 @@ export function ChargesPage() {
         <div className="stat">
           <span className="stat-label">Success rate</span>
           <span className="stat-value">{rate.toFixed(1)}%</span>
-          <span className="stat-meta">Succeeded / total in current filter, no fabricated delta</span>
+          <span className="stat-meta">Succeeded / total in current filter</span>
         </div>
         <div className="stat">
           <span className="stat-label">Volume · succeeded</span>
@@ -124,7 +119,7 @@ export function ChargesPage() {
         </div>
         <div className="stat">
           <span className="stat-label">Inquiry</span>
-          <span className="stat-meta" style={{ marginTop: 4 }}>Click a row to fetch live <code>GetChargeStatus</code> via TS client <code>OrctaPay.getChargeStatus(ref)</code>, shows typed Result or OrctaPayError.</span>
+          <span className="stat-meta" style={{ marginTop: 4 }}>Click a row to fetch live status</span>
         </div>
       </div>
 
@@ -181,7 +176,7 @@ function ChargeDetail({ row, onClose }: { row: ChargeRow; onClose: () => void })
   return (
     <div className="card" style={{ borderColor: "var(--color-accent-ring)" }}>
       <div className="row" style={{ justifyContent: "space-between" }}>
-        <h2 style={{ margin: 0, overflowWrap: "anywhere" }}>Charge, {row.ref.slice(0, 28)}…</h2>
+        <h2 style={{ margin: 0, overflowWrap: "anywhere" }}>Charge {row.ref.slice(0, 28)}...</h2>
         <Button className="btn ghost" onClick={onClose}>Close</Button>
       </div>
 
@@ -202,7 +197,7 @@ function ChargeDetail({ row, onClose }: { row: ChargeRow; onClose: () => void })
           <h3 style={{ fontSize: 13, margin: "0 0 6px", fontWeight: 600 }}>GetChargeStatus · live</h3>
           <div className="row" style={{ marginBottom: 8 }}>
             <Button className="btn" onClick={() => void refetch()} disabled={isFetching}>{isFetching ? "Fetching…" : "Fetch via OrctaPay.getChargeStatus"}</Button>
-            <span className="muted">Calls <code>GET /v1/charges/{"{ref}"}/status</code> through the TS client.</span>
+            <span className="muted">Calls <code>GET /v1/charges/{"{ref}"}/status</code></span>
           </div>
           {error ? <pre style={{ background: "var(--color-bad-soft)", padding: 10, borderRadius: 8, fontSize: 12, whiteSpace: "pre-wrap", border: "1px solid var(--color-bad-line)", overflowWrap: "anywhere" }}>{String((error as Error).message || error)}</pre> : null}
           {data != null ? <pre style={{ background: "var(--color-surface-muted)", padding: 10, borderRadius: 8, fontSize: 12, overflow: "auto", border: "1px solid var(--color-line)" }}>{JSON.stringify(data, null, 2)}</pre> : null}

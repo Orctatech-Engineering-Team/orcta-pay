@@ -118,13 +118,7 @@ export function AppsPage() {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between" }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 16 }}>Apps, API keys</h2>
-            <p className="muted" style={{ margin: "4px 0 0" }}>
-              Each service creates an app and gets a per-product <code>pay_live_…</code> key. Keys are stored in Vault at{" "}
-              <code>secret/orcta/orcta-pay/keys/{"{product}"}</code> and rendered to <code>ORCTA_PAY_API_KEY</code>. Use TanStack Mutation <code>createApp</code> with <code>invalidate ["apps"]</code>, mock fallback when offline.
-            </p>
-          </div>
+          <h2 style={{ margin: 0 }}>Apps</h2>
           <Button className="btn" onClick={() => { setCreateOpen(true); setErrorMsg(null); }}>
             Create app
           </Button>
@@ -146,7 +140,7 @@ export function AppsPage() {
         </div>
         <div className="stat">
           <span className="stat-label">Per-product keys</span>
-          <span className="stat-meta" style={{ marginTop: 4 }}>One key per product, plug <code>pay_live_…</code> into Go/TS SDKs. Vault path <code>secret/orcta/orcta-pay/keys/{"{product}"}</code>.</span>
+          <span className="stat-meta" style={{ marginTop: 4 }}>One key per product, plug into Go/TS SDKs</span>
         </div>
         <div className="stat" style={{ background: "var(--color-accent-faint)", borderColor: "var(--color-accent-ring)" }}>
           <span className="stat-label">Quick start</span>
@@ -154,7 +148,7 @@ export function AppsPage() {
         </div>
         <div className="stat">
           <span className="stat-label">Type safety</span>
-          <span className="stat-meta">TS client returns <code>{"{data, error}"}</code> Result, never throws. Check <code>error</code> with <code>OrctaPayError</code>.</span>
+          <span className="stat-meta">TS client returns <code>{"{data, error}"}</code>, never throws</span>
         </div>
       </div>
 
@@ -256,9 +250,9 @@ const pay = new OrctaPay({ apiKey: process.env.ORCTA_PAY_API_KEY! });`}</pre>
         <Dialog.Portal>
           <Dialog.Backdrop className="modal-backdrop" />
           <Dialog.Popup className="modal" style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", maxHeight: "90vh", overflow: "auto" }}>
-            <Dialog.Title style={{ marginTop: 0, fontSize: 16, fontWeight: 700 }}>Create app</Dialog.Title>
-            <p className="muted" style={{ marginTop: 4 }}>
-              An app is a per-service API key. Name it after the service (<code>orctago</code>, <code>pos</code>). The key is shown once.
+            <Dialog.Title className="modal-title">Create app</Dialog.Title>
+            <p className="muted" style={{ marginBottom: 16 }}>
+              Name it after the service. The key is shown once.
             </p>
             <form
               onSubmit={(e) => {

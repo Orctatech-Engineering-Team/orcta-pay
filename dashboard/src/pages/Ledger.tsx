@@ -55,13 +55,8 @@ export function LedgerPage() {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between" }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 16 }}>Ledger, double-entry</h2>
-            <p className="muted" style={{ margin: "4px 0 0" }}>
-              <code>vendor_ledger_entries</code> + <code>platform_commission_entries</code> with <code>value_time</code> / <code>booking_time</code> / <code>settlement_time</code>. TanStack Query <code>["ledger", {`{vendor, kind}`}]</code> → <code>GET /v1/ledger</code>, mock fallback. Reconciliation invariant checked over visible slice.
-            </p>
-          </div>
-          <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>{isFetching ? "fetching…" : error ? "mock" : "live"}</span>
+          <h2 style={{ margin: 0 }}>Ledger</h2>
+          <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{isFetching ? "fetching..." : error ? "mock" : "live"}</span>
         </div>
         <div className="row" style={{ marginTop: 12 }}>
           <Select.Root value={vendor} onValueChange={(v: unknown) => setVendor(v as string)}>
@@ -97,7 +92,7 @@ export function LedgerPage() {
         <div className="stat" style={{ background: reconciliationOk ? "var(--color-ok-soft)" : "var(--color-bad-soft)", borderColor: reconciliationOk ? "var(--color-ok-line)" : "var(--color-bad-line)" }}>
           <span className="stat-label">Reconciliation</span>
           <span className="stat-value" style={{ color: reconciliationOk ? "var(--color-ok-ink)" : "var(--color-bad-ink)" }}>{reconciliationOk ? "0 ✓" : `${totals.credits - totals.debits - totals.net} ✗`}</span>
-          <span className="muted" style={{ fontSize: 11 }}>Job diffs this slice against aggregator settlement. Mismatches alert, never auto-overwrite, compensating entry only.</span>
+          <span className="muted" style={{ fontSize: 12 }}>Reconciliation invariant checked on this page</span>
         </div>
       </div>
 

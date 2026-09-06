@@ -9,6 +9,15 @@ import { getApiKey, getBaseUrl, getProduct, setProduct, maskKey } from "../lib/c
 import { getTheme, toggleTheme, type Theme } from "../lib/theme";
 import { SettingsModal } from "./SettingsModal";
 
+function BrandIcon() {
+  return (
+    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="32" height="32" rx="8" fill="#3D4AF6" />
+      <text x="16" y="22" textAnchor="middle" fill="white" fontSize="18" fontWeight="700" fontFamily="Inter, sans-serif">O</text>
+    </svg>
+  );
+}
+
 function IconOverview() {
   return <svg className="rail-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>;
 }
@@ -55,7 +64,7 @@ const NAV_GROUPS = [
     label: "Access",
     items: [{ to: "/apps", label: "Apps", Icon: IconApps }],
   },
-] ;
+];
 
 export function Layout() {
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -92,17 +101,14 @@ export function Layout() {
   });
 
   const health = healthData?.state ?? "checking";
-  const detail = healthData?.detail ?? "checking…";
   const healthLabel = health === "ok" ? "live" : health === "down" ? "offline" : "checking";
   const dotClass = health === "ok" ? "ok" : health === "down" ? "down" : "checking";
-  const isSystemAdmin = scope === "all";
-  const roleLabel = isSystemAdmin ? "System admin" : "Manager";
 
   return (
     <div className="workbench">
       <aside className="rail" aria-label="Primary">
         <div className="rail-brand">
-          <img src="/logo.svg" alt="Orcta" width={28} height={28} />
+          <BrandIcon />
           <div className="rail-brand-text">
             <span className="rail-brand-title">Orcta Pay</span>
             <span className="rail-brand-sub">operator</span>
@@ -110,9 +116,8 @@ export function Layout() {
         </div>
 
         <div className="rail-scope">
-          <span className="rail-scope-label">Scope</span>
           <Select.Root value={scope} onValueChange={(v: unknown) => setScope(v as string)}>
-            <Select.Trigger className="select" style={{ width: "100%" as unknown as string }}>
+            <Select.Trigger className="select rail-scope-trigger">
               <Select.Value />
               <Select.Icon>▾</Select.Icon>
             </Select.Trigger>
@@ -128,9 +133,6 @@ export function Layout() {
               </Select.Positioner>
             </Select.Portal>
           </Select.Root>
-          <div className="row" style={{ gap: 6 }}>
-            <span className="pill" style={{ fontSize: 11 }}>{roleLabel}</span>
-          </div>
         </div>
 
         <nav className="rail-nav" aria-label="Sections">
@@ -159,16 +161,13 @@ export function Layout() {
         </nav>
 
         <div className="rail-meta">
-          <div className="rail-health" title={detail}>
+          <div className="rail-health" title={healthLabel}>
             <span className={`dot ${dotClass}`} />
-            <div className="rail-health-text">
-              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--color-ink)" }}>API {healthLabel}</span>
-              <span className="muted" style={{ fontSize: 12, overflowWrap: "anywhere" }}>{detail.slice(0, 60)}</span>
-            </div>
+            <span style={{ fontSize: 13, fontWeight: 500, color: "var(--color-ink-muted)" }}>API {healthLabel}</span>
           </div>
-          <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+          <div className="rail-meta-row">
             <span className="badge" title={apiKey || "no key"}>{maskKey(apiKey)}</span>
-            <Button className="btn ghost" style={{ padding: "6px 10px", fontSize: 12, flex: 1 }} onClick={() => setSettingsOpen(true)}>
+            <Button className="btn ghost rail-settings-btn" onClick={() => setSettingsOpen(true)}>
               Settings
             </Button>
           </div>
@@ -177,19 +176,10 @@ export function Layout() {
 
       <div className="work-main">
         <div className="work-header">
-          <div>
-            <h1 className="work-header-title">
-              {NAV_GROUPS.flatMap((g) => g.items).find((n) => n.to === pathname)?.label ?? (pathname === "/" ? "Overview" : pathname.replace("/", ""))}
-            </h1>
-            <span className="work-header-sub">
-              {isSystemAdmin ? "Overall, all Orcta apps" : `Per-app, ${scope}`}
-            </span>
-          </div>
+          <h1 className="work-header-title">
+            {NAV_GROUPS.flatMap((g) => g.items).find((n) => n.to === pathname)?.label ?? (pathname === "/" ? "Overview" : pathname.replace("/", ""))}
+          </h1>
           <span className="work-header-spacer" />
-          <span className={`badge ${health === "ok" ? "ok" : health === "down" ? "down" : ""}`}>
-            <span className={`dot ${dotClass}`} style={{ marginRight: 6 }} />
-            {healthLabel}
-          </span>
           <Button
             className="theme-toggle"
             onClick={() => setThemeState(toggleTheme())}
@@ -213,11 +203,6 @@ export function Layout() {
         <main className="main">
           <Outlet />
         </main>
-
-        <footer style={{ padding: "10px 24px", borderTop: "1px solid var(--color-line-faint)", background: "var(--color-surface)", display: "flex", gap: 12, flexWrap: "wrap", fontSize: 12, color: "var(--color-ink-faint)" }}>
-          <span>© Orcta Pay</span>
-          <span style={{ marginLeft: "auto" }}>TS client <code>@orctatech/orcta-pay</code></span>
-        </footer>
       </div>
 
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />

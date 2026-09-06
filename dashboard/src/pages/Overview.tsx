@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@base-ui/react/button";
-import { getApiKey, getBaseUrl, getProduct } from "../lib/config";
+import { getApiKey, getBaseUrl } from "../lib/config";
 import { formatGHS, formatDate } from "../lib/format";
 import { mockApps, mockCharges, mockGateways, mockLedger, mockPayoutBatches, mockWebhooks } from "../lib/mock";
 import type { AppRow, ChargeRow, GatewayHealthRow, LedgerEntry, PayoutBatchRow, WebhookRow } from "../lib/mock";
@@ -55,9 +55,6 @@ function statsForLedger(entries: LedgerEntry[]) {
 }
 
 export function OverviewPage() {
-  const scope = getProduct() || "all";
-  const isOverall = !scope || scope === "all" || ((): boolean => { try { return !localStorage.getItem("orcta_pay_product"); } catch { return true; } })();
-
   const chargesQ = useLive<ChargeRow[]>("charges-overview", "/v1/charges", mockCharges);
   const payoutsQ = useLive<PayoutBatchRow[]>("payouts-overview", "/v1/payouts", mockPayoutBatches);
   const ledgerQ = useLive<LedgerEntry[]>("ledger-overview", "/v1/ledger", mockLedger);

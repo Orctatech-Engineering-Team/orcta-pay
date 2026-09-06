@@ -40,16 +40,8 @@ export function GatewaysPage() {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between" }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 16 }}>Gateway health, Valkey ranking</h2>
-            <p className="muted" style={{ margin: "4px 0 0" }}>
-              Rolling success rate, p95 latency, and circuit breaker per <code>gateway × channel</code> from Valkey. Ranking is <strong>success-rate floor → cost tiebreak</strong>; open circuits excluded. TanStack Query <code>["gateways"]</code> → <code>GET /v1/gateways/health</code> with mock fallback.
-            </p>
-          </div>
-          <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>{isFetching ? "fetching…" : error ? "mock" : "live"}</span>
-        </div>
-        <div style={{ background: "var(--color-surface-muted)", padding: 10, borderRadius: 8, fontSize: 12, marginTop: 10, border: "1px solid var(--color-line)" }}>
-            <strong>Eligibility, Ranking, Failover:</strong> eligibility filters by channel/amount/currency/product; ranking scores remaining candidates; sync <code>Initiate</code> errors fail over to next-ranked gateway, async failures reconcile via <code>GetTransactionStatus</code>.
+          <h2 style={{ margin: 0 }}>Gateway health</h2>
+          <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{isFetching ? "fetching..." : error ? "mock" : "live"}</span>
         </div>
         {showMockBanner ? (
           <div style={{ marginTop: 10, background: "var(--color-warn-soft)", border: "1px solid var(--color-warn-line)", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
@@ -72,11 +64,11 @@ export function GatewaysPage() {
         <div className="stat">
           <span className="stat-label">Avg success rate</span>
           <span className="stat-value">{(avgSuccess * 100).toFixed(1)}%</span>
-          <span className="stat-meta">Rolling window, floor 95%, no fabricated improvement</span>
+          <span className="stat-meta">Rolling window, floor 95%</span>
         </div>
         <div className="stat">
           <span className="stat-label">Failover</span>
-          <span className="stat-meta" style={{ marginTop: 4 }}>Sync errors fail over to next-ranked gateway. Async failures reconcile via <code>GetTransactionStatus</code>, no cross-gateway retry to avoid double-charge.</span>
+          <span className="stat-meta" style={{ marginTop: 4 }}>Sync errors fail over to next-ranked gateway.</span>
         </div>
       </div>
 
@@ -84,7 +76,7 @@ export function GatewaysPage() {
         <div key={channel} className="card" style={{ padding: 0, overflow: "hidden" }}>
           <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--color-line)", background: "var(--color-surface-soft)" }}>
             <strong style={{ fontSize: 13 }}>Channel: {channel}</strong>{" "}
-            <span className="muted">, ranked gateways [primary, fallback…]</span>
+            <span className="muted">, ranked gateways</span>
           </div>
           <div style={{ overflowX: "auto" }}>
             <table>
@@ -125,7 +117,7 @@ export function GatewaysPage() {
       <div className="card">
         <h2>Circuit breaker</h2>
         <p className="muted" style={{ margin: 0 }}>
-          Consecutive failures / error-rate threshold opens the circuit. Half-open probes after cooldown. An outage is detected once and routed around for every subsequent request. Transitions are a release-blocking observability panel.
+          Consecutive failures open the circuit. Half-open probes after cooldown.
         </p>
       </div>
     </div>
