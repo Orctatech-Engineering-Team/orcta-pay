@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Select } from "@base-ui/react/select";
 import { getApiKey, getBaseUrl } from "../lib/config";
 import { formatDate } from "../lib/format";
 import { mockWebhooks, type WebhookRow } from "../lib/mock";
@@ -49,15 +48,12 @@ export function WebhooksPage() {
           <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{isFetching ? "fetching..." : error ? "mock" : "live"}</span>
         </div>
         <div className="row" style={{ marginTop: 12 }}>
-          <Select.Root value={gateway} onValueChange={(v: unknown) => setGateway(v as string)}>
-            <Select.Trigger className="select"><Select.Value /><Select.Icon>▾</Select.Icon></Select.Trigger>
-            <Select.Portal><Select.Positioner><Select.Popup><Select.List>
-              <Select.Item value="all">All gateways</Select.Item>
-              <Select.Item value="hubtel">hubtel</Select.Item>
-              <Select.Item value="paystack">paystack</Select.Item>
-              <Select.Item value="moolre">moolre</Select.Item>
-            </Select.List></Select.Popup></Select.Positioner></Select.Portal>
-          </Select.Root>
+          <select className="select" value={gateway} onChange={(e) => setGateway(e.target.value)}>
+            <option value="all">All gateways</option>
+            <option value="hubtel">hubtel</option>
+            <option value="paystack">paystack</option>
+            <option value="moolre">moolre</option>
+          </select>
           <span className="muted">Dedup: <code>UNIQUE (aggregator_event_id)</code>, {deduped} duplicated event(s) highlighted, {unprocessed} unprocessed</span>
         </div>
         {showMockBanner ? (
@@ -76,16 +72,12 @@ export function WebhooksPage() {
         <div className="stat">
           <span className="stat-label">Dedup groups</span>
           <span className="stat-value">{deduped}</span>
-          <span className="stat-meta">Redelivery is expected. Duplicates return 200 without reprocessing</span>
+          <span className="stat-meta">Duplicates return 200 without reprocessing</span>
         </div>
         <div className="stat">
           <span className="stat-label">Unprocessed</span>
           <span className="stat-value">{unprocessed}</span>
           <span className="stat-meta">Null until processing completes</span>
-        </div>
-        <div className="stat">
-          <span className="stat-label">Verification</span>
-          <span className="stat-meta" style={{ marginTop: 4 }}>Paystack: HMAC SHA512 constant-time. Moolre: dedup + status check.</span>
         </div>
       </div>
 

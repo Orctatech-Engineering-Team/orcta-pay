@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Input } from "@base-ui/react/input";
 import { Button } from "@base-ui/react/button";
-import { Select } from "@base-ui/react/select";
 import { makeClient } from "../lib/api";
 import { getApiKey, getBaseUrl } from "../lib/config";
 import { formatDate, formatGHS } from "../lib/format";
@@ -66,33 +65,24 @@ export function ChargesPage() {
           <span className="muted" style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{liveQuery.isFetching ? "fetching..." : liveQuery.error ? "mock" : "live"}</span>
         </div>
         <div className="row" style={{ marginTop: 12 }}>
-          <Input className="input" placeholder="Search by ref…" value={q} onChange={(e) => setQ(e.target.value)} style={{ flex: 1, minWidth: 220 }} />
-          <Select.Root value={product} onValueChange={(v: unknown) => setProduct(v as string)}>
-            <Select.Trigger className="select"><Select.Value /><Select.Icon>▾</Select.Icon></Select.Trigger>
-            <Select.Portal><Select.Positioner><Select.Popup><Select.List>
-              <Select.Item value="all">All products</Select.Item>
-              <Select.Item value="orctago">orctago</Select.Item>
-              <Select.Item value="pos">pos</Select.Item>
-            </Select.List></Select.Popup></Select.Positioner></Select.Portal>
-          </Select.Root>
-          <Select.Root value={gateway} onValueChange={(v: unknown) => setGateway(v as string)}>
-            <Select.Trigger className="select"><Select.Value /><Select.Icon>▾</Select.Icon></Select.Trigger>
-            <Select.Portal><Select.Positioner><Select.Popup><Select.List>
-              <Select.Item value="all">All gateways</Select.Item>
-              <Select.Item value="hubtel">hubtel</Select.Item>
-              <Select.Item value="paystack">paystack</Select.Item>
-              <Select.Item value="moolre">moolre</Select.Item>
-            </Select.List></Select.Popup></Select.Positioner></Select.Portal>
-          </Select.Root>
-          <Select.Root value={status} onValueChange={(v: unknown) => setStatus(v as string)}>
-            <Select.Trigger className="select"><Select.Value /><Select.Icon>▾</Select.Icon></Select.Trigger>
-            <Select.Portal><Select.Positioner><Select.Popup><Select.List>
-              <Select.Item value="all">All statuses</Select.Item>
-              <Select.Item value="pending">pending</Select.Item>
-              <Select.Item value="succeeded">succeeded</Select.Item>
-              <Select.Item value="failed">failed</Select.Item>
-            </Select.List></Select.Popup></Select.Positioner></Select.Portal>
-          </Select.Root>
+          <Input className="input" placeholder="Search by ref..." value={q} onChange={(e) => setQ(e.target.value)} style={{ flex: 1, minWidth: 220 }} />
+          <select className="select" value={product} onChange={(e) => setProduct(e.target.value)}>
+            <option value="all">All apps</option>
+            <option value="orctago">orctago</option>
+            <option value="pos">pos</option>
+          </select>
+          <select className="select" value={gateway} onChange={(e) => setGateway(e.target.value)}>
+            <option value="all">All gateways</option>
+            <option value="hubtel">hubtel</option>
+            <option value="paystack">paystack</option>
+            <option value="moolre">moolre</option>
+          </select>
+          <select className="select" value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="all">All statuses</option>
+            <option value="pending">pending</option>
+            <option value="succeeded">succeeded</option>
+            <option value="failed">failed</option>
+          </select>
         </div>
         {showMockBanner ? (
           <div style={{ marginTop: 10, background: "var(--color-warn-soft)", border: "1px solid var(--color-warn-line)", padding: "8px 10px", borderRadius: 8, fontSize: 12 }}>
@@ -105,7 +95,7 @@ export function ChargesPage() {
         <div className="stat">
           <span className="stat-label">Total in view</span>
           <span className="stat-value">{total}</span>
-          <span className="stat-meta">{succeeded} succeeded · {pending} pending · {failed} failed</span>
+          <span className="stat-meta">{succeeded} succeeded, {pending} pending, {failed} failed</span>
         </div>
         <div className="stat">
           <span className="stat-label">Success rate</span>
@@ -113,9 +103,9 @@ export function ChargesPage() {
           <span className="stat-meta">Succeeded / total in current filter</span>
         </div>
         <div className="stat">
-          <span className="stat-label">Volume · succeeded</span>
+          <span className="stat-label">Volume, succeeded</span>
           <span className="stat-value">{formatGHS(volumeSucceeded)}</span>
-          <span className="stat-meta">Sum of succeeded amounts ({volumeSucceeded} pesewas)</span>
+          <span className="stat-meta">Sum of succeeded amounts</span>
         </div>
         <div className="stat">
           <span className="stat-label">Inquiry</span>
@@ -129,7 +119,7 @@ export function ChargesPage() {
             <thead>
               <tr>
                 <th>ref</th>
-                <th>product</th>
+                <th>app</th>
                 <th>gateway</th>
                 <th>amount</th>
                 <th>status</th>
@@ -139,10 +129,10 @@ export function ChargesPage() {
             <tbody>
               {rows.map((r) => (
                 <tr key={r.ref} onClick={() => setSelected(r)} style={{ cursor: "pointer" }}>
-                  <td className="mono" title={r.ref} style={{ maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.ref}</td>
+                  <td title={r.ref} style={{ maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.ref}</td>
                   <td>{r.product}</td>
                   <td>{r.gateway}</td>
-                  <td>{formatGHS(r.amount_pesewas)}</td>
+                  <td style={{ fontWeight: 600 }}>{formatGHS(r.amount_pesewas)}</td>
                   <td><span className={`pill ${r.status}`}>{r.status}</span></td>
                   <td className="muted">{formatDate(r.created_at)}</td>
                 </tr>
@@ -185,18 +175,18 @@ function ChargeDetail({ row, onClose }: { row: ChargeRow; onClose: () => void })
           <h3 style={{ fontSize: 13, margin: "0 0 6px", fontWeight: 600 }}>Intent</h3>
           <dl className="kv">
             <dt>ref</dt><dd>{row.ref}</dd>
-            <dt>product</dt><dd>{row.product}</dd>
+            <dt>app</dt><dd>{row.product}</dd>
             <dt>gateway</dt><dd>{row.gateway}</dd>
             <dt>amount</dt><dd>{formatGHS(row.amount_pesewas)} ({row.amount_pesewas} pesewas)</dd>
             <dt>status</dt><dd><span className={`pill ${row.status}`}>{row.status}</span></dd>
             <dt>created_at</dt><dd>{formatDate(row.created_at)}</dd>
-            <dt>external_ref</dt><dd>{row.external_ref || "\u2014"}</dd>
+            <dt>external_ref</dt><dd>{row.external_ref || "-"}</dd>
           </dl>
         </div>
         <div>
-          <h3 style={{ fontSize: 13, margin: "0 0 6px", fontWeight: 600 }}>GetChargeStatus · live</h3>
+          <h3 style={{ fontSize: 13, margin: "0 0 6px", fontWeight: 600 }}>GetChargeStatus, live</h3>
           <div className="row" style={{ marginBottom: 8 }}>
-            <Button className="btn" onClick={() => void refetch()} disabled={isFetching}>{isFetching ? "Fetching…" : "Fetch via OrctaPay.getChargeStatus"}</Button>
+            <Button className="btn" onClick={() => void refetch()} disabled={isFetching}>{isFetching ? "Fetching..." : "Fetch via OrctaPay.getChargeStatus"}</Button>
             <span className="muted">Calls <code>GET /v1/charges/{"{ref}"}/status</code></span>
           </div>
           {error ? <pre style={{ background: "var(--color-bad-soft)", padding: 10, borderRadius: 8, fontSize: 12, whiteSpace: "pre-wrap", border: "1px solid var(--color-bad-line)", overflowWrap: "anywhere" }}>{String((error as Error).message || error)}</pre> : null}

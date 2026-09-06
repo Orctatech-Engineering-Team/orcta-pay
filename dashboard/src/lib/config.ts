@@ -1,6 +1,6 @@
 const LS_KEY = "orcta_pay_api_key";
 const LS_URL = "orcta_pay_url";
-const LS_PRODUCT = "orcta_pay_product";
+const LS_SCOPE = "orcta_pay_scope";
 
 export function getApiKey(): string {
   try {
@@ -40,20 +40,20 @@ export function setBaseUrl(url: string): void {
   }
 }
 
-export function getProduct(): string {
+export function getScope(): string {
   try {
-    const ls = localStorage.getItem(LS_PRODUCT);
+    const ls = localStorage.getItem(LS_SCOPE);
     if (ls) return ls;
   } catch {
     // ignore
   }
-  return (import.meta.env.VITE_ORCTA_PAY_PRODUCT as string) || "orctago";
+  return "all";
 }
 
-export function setProduct(product: string): void {
+export function setScope(scope: string): void {
   try {
-    if (product) localStorage.setItem(LS_PRODUCT, product);
-    else localStorage.removeItem(LS_PRODUCT);
+    if (scope && scope !== "all") localStorage.setItem(LS_SCOPE, scope);
+    else localStorage.removeItem(LS_SCOPE);
   } catch {
     // ignore
   }
@@ -63,11 +63,4 @@ export function maskKey(key: string): string {
   if (!key) return "not set";
   if (key.length <= 8) return "••••";
   return `${key.slice(0, 8)}…${key.slice(-4)}`;
-}
-
-export function inferProductFromKey(key: string): string {
-  // Vault path is secret/orcta/orcta-pay/keys/{product}; key itself is opaque,
-  // but localStorage product hint wins. Fallback to env product.
-  void key;
-  return getProduct();
 }

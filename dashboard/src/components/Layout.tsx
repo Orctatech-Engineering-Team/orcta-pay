@@ -2,21 +2,11 @@ import { useState, useEffect } from "react";
 import { Outlet, useRouterState, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@base-ui/react/button";
-import { Select } from "@base-ui/react/select";
 import { Toast } from "@base-ui/react/toast";
-import { checkHealth } from "../lib/api";
-import { getApiKey, getBaseUrl, getProduct, setProduct, maskKey } from "../lib/config";
+import { checkHealth, makeClient } from "../lib/api";
+import { getApiKey, getBaseUrl, getScope, setScope, maskKey } from "../lib/config";
 import { getTheme, toggleTheme, type Theme } from "../lib/theme";
-import { SettingsModal } from "./SettingsModal";
-
-function BrandIcon() {
-  return (
-    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="32" height="32" rx="8" fill="#3D4AF6" />
-      <text x="16" y="22" textAnchor="middle" fill="white" fontSize="18" fontWeight="700" fontFamily="Inter, sans-serif">O</text>
-    </svg>
-  );
-}
+import { mockApps, type AppRow } from "../lib/mock";
 
 function IconOverview() {
   return <svg className="rail-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>;
@@ -67,11 +57,9 @@ const NAV_GROUPS = [
 ];
 
 export function Layout() {
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [scope, setScope] = useState<string>(() => {
+  const [scope, setScopeState] = useState<string>(() => {
     try {
-      const v = getProduct();
-      return v || "all";
+      return getScope();
     } catch {
       return "all";
     }
@@ -83,14 +71,21 @@ export function Layout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   useEffect(() => {
-    if (scope === "all") {
-      try {
-        localStorage.removeItem("orcta_pay_product");
-      } catch { /* ignore */ }
-    } else {
-      setProduct(scope);
-    }
+    setScope(scope);
   }, [scope]);
+
+  const { data: appsData } = useQuery({
+    queryKey: ["apps"],
+    queryFn: async () => {
+      const client = makeClient();
+      const { data: d } = await client.listApps();
+      return ((d as unknown as AppRow[]) ?? mockApps).filter((a) => !a.revoked);
+    },
+    staleTime: 60_000,
+    retry: 1,
+  });
+
+  const apps = appsData ?? [];
 
   const { data: healthData } = useQuery({
     queryKey: ["health", baseUrl],
@@ -108,7 +103,7 @@ export function Layout() {
     <div className="workbench">
       <aside className="rail" aria-label="Primary">
         <div className="rail-brand">
-          <BrandIcon />
+          <img src="/favicon.png" alt="Orcta Pay" width={32} height={32} style={{ borderRadius: 8 }} />
           <div className="rail-brand-text">
             <span className="rail-brand-title">Orcta Pay</span>
             <span className="rail-brand-sub">operator</span>
@@ -116,23 +111,12 @@ export function Layout() {
         </div>
 
         <div className="rail-scope">
-          <Select.Root value={scope} onValueChange={(v: unknown) => setScope(v as string)}>
-            <Select.Trigger className="select rail-scope-trigger">
-              <Select.Value />
-              <Select.Icon>▾</Select.Icon>
-            </Select.Trigger>
-            <Select.Portal>
-              <Select.Positioner>
-                <Select.Popup>
-                  <Select.List>
-                    <Select.Item value="all">All apps (overall)</Select.Item>
-                    <Select.Item value="orctago">orctago</Select.Item>
-                    <Select.Item value="pos">pos</Select.Item>
-                  </Select.List>
-                </Select.Popup>
-              </Select.Positioner>
-            </Select.Portal>
-          </Select.Root>
+          <select className="select rail-scope-trigger" value={scope} onChange={(e) => setScopeState(e.target.value)}>
+            <option value="all">All apps</option>
+            {apps.map((a) => (
+              <option key={a.id} value={a.name}>{a.name}</option>
+            ))}
+          </select>
         </div>
 
         <nav className="rail-nav" aria-label="Sections">
@@ -167,7 +151,7 @@ export function Layout() {
           </div>
           <div className="rail-meta-row">
             <span className="badge" title={apiKey || "no key"}>{maskKey(apiKey)}</span>
-            <Button className="btn ghost rail-settings-btn" onClick={() => setSettingsOpen(true)}>
+            <Button className="btn ghost rail-settings-btn" onClick={() => void navigate({ to: "/settings" })}>
               Settings
             </Button>
           </div>
@@ -177,7 +161,7 @@ export function Layout() {
       <div className="work-main">
         <div className="work-header">
           <h1 className="work-header-title">
-            {NAV_GROUPS.flatMap((g) => g.items).find((n) => n.to === pathname)?.label ?? (pathname === "/" ? "Overview" : pathname.replace("/", ""))}
+            {NAV_GROUPS.flatMap((g) => g.items).find((n) => n.to === pathname)?.label ?? (pathname === "/" ? "Overview" : pathname === "/settings" ? "Settings" : pathname.replace("/", ""))}
           </h1>
           <span className="work-header-spacer" />
           <Button
@@ -205,7 +189,6 @@ export function Layout() {
         </main>
       </div>
 
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <Toast.Viewport />
     </div>
   );

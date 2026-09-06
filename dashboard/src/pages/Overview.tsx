@@ -73,7 +73,7 @@ export function OverviewPage() {
     return products.map((p) => {
       const c = chargesQ.data.filter((r) => r.product === p);
       const l = ledgerQ.data.filter((e) => e.product === p);
-      const b = payoutsQ.data; // payouts not product-scoped in mock, show shared but mark per scope
+      const b = payoutsQ.data;
       return {
         product: p,
         charges: statsForCharges(c),
@@ -84,13 +84,12 @@ export function OverviewPage() {
   }, [products, chargesQ.data, ledgerQ.data, payoutsQ.data]);
 
   const openCircuits = gatewaysQ.data.filter((g) => g.circuit_state === "open").length;
-  const halfOpen = gatewaysQ.data.filter((g) => g.circuit_state === "half_open").length;
   const eligible = gatewaysQ.data.filter((g) => g.eligible).length;
   const appsActive = appsQ.data.filter((a) => !a.revoked).length;
   const appsRevoked = appsQ.data.filter((a) => a.revoked).length;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {showMockBanner ? (
         <div style={{ background: "var(--color-warn-soft)", border: "1px solid var(--color-warn-line)", padding: "10px 14px", borderRadius: 8, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
           <span className={`dot ${chargesQ.error ? "down" : "checking"}`} />
@@ -98,23 +97,38 @@ export function OverviewPage() {
         </div>
       ) : null}
 
-      <div className="stats-row">
-        <div className="stat">
-          <span className="stat-label">Charges</span>
-          <span className="stat-value">{chargesOverall.total}</span>
-          <span className="stat-meta">
-            {chargesOverall.succeeded} succeeded, {chargesOverall.pending} pending, {chargesOverall.failed} failed
-          </span>
+      {/* Hero: Money processed */}
+      <div className="card" style={{ background: "var(--color-accent-faint)", borderColor: "var(--color-accent-ring)" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+          <span style={{ fontSize: "var(--text-xs)", fontWeight: 600, letterSpacing: "var(--tracking-wide)", textTransform: "uppercase", color: "var(--color-accent-ink)" }}>Total processed</span>
         </div>
+        <div style={{ fontSize: "var(--text-2xl)", fontWeight: 700, color: "var(--color-ink-strong)", marginTop: 4, letterSpacing: "var(--tracking-tight)" }}>
+          {formatGHS(chargesOverall.volumeSucceeded)}
+        </div>
+        <div style={{ display: "flex", gap: 16, marginTop: 10, fontSize: "var(--text-sm)", color: "var(--color-ink-muted)" }}>
+          <span>{chargesOverall.succeeded} succeeded</span>
+          <span>{chargesOverall.pending} pending</span>
+          <span>{chargesOverall.failed} failed</span>
+          <span>Rate {(chargesOverall.rate * 100).toFixed(1)}%</span>
+        </div>
+      </div>
+
+      {/* Secondary stats */}
+      <div className="stats-row">
         <div className="stat">
           <span className="stat-label">Success rate</span>
           <span className="stat-value">{(chargesOverall.rate * 100).toFixed(1)}%</span>
-          <span className="stat-meta">Volume {formatGHS(chargesOverall.volumeSucceeded)}</span>
+          <span className="stat-meta">{chargesOverall.succeeded} of {chargesOverall.total} charges</span>
         </div>
         <div className="stat">
           <span className="stat-label">Payouts</span>
           <span className="stat-value">{formatGHS(payoutsOverall.net)}</span>
-          <span className="stat-meta">{payoutsOverall.count} batches, {payoutsOverall.completed} completed</span>
+          <span className="stat-meta">{payoutsOverall.count} batches, {payoutsOverall.vendors} vendors</span>
+        </div>
+        <div className="stat">
+          <span className="stat-label">Ledger balance</span>
+          <span className="stat-value" style={{ color: ledgerOverall.net >= 0 ? "var(--color-ok-ink)" : "var(--color-bad-ink)" }}>{formatGHS(ledgerOverall.net)}</span>
+          <span className="stat-meta">Credits {formatGHS(ledgerOverall.credits)} - Debits {formatGHS(ledgerOverall.debits)}</span>
         </div>
         <div className="stat">
           <span className="stat-label">Gateways</span>
@@ -123,88 +137,75 @@ export function OverviewPage() {
         </div>
       </div>
 
-      <div className="grid2">
-        <div className="card">
-          <h2>Per-app</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10, marginTop: 10 }}>
-            {perApp.map((a) => (
-              <div key={a.product} style={{ border: "1px solid var(--color-line-faint)", borderRadius: 10, padding: "12px 14px", background: "var(--color-surface-soft)" }}>
-                <div className="row" style={{ justifyContent: "space-between", marginBottom: 8 }}>
-                  <strong style={{ fontSize: 14 }}>{a.product}</strong>
-                  <span className="pill" style={{ fontSize: 11 }}>{a.charges.total}</span>
+      {/* Per-app breakdown */}
+      <div className="card">
+        <h2 style={{ marginBottom: 14 }}>Per-app breakdown</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+          {perApp.map((a) => (
+            <div key={a.product} style={{ border: "1px solid var(--color-line)", borderRadius: 10, padding: 16, background: "var(--color-surface)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <strong style={{ fontSize: 15 }}>{a.product}</strong>
+                <span className="pill succeeded">{a.charges.total} charges</span>
+              </div>
+              <div style={{ fontSize: 14, display: "flex", flexDirection: "column", gap: 6, color: "var(--color-ink)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>Volume</span>
+                  <strong style={{ fontFamily: "var(--font-mono)" }}>{formatGHS(a.charges.volumeSucceeded)}</strong>
                 </div>
-                <div style={{ fontSize: 13, display: "flex", flexDirection: "column", gap: 3, color: "var(--color-ink-muted)" }}>
-                  <span>{a.charges.succeeded} succeeded, {a.charges.pending} pending, {a.charges.failed} failed</span>
-                  <span style={{ fontFamily: "var(--font-mono)" }}>Vol {formatGHS(a.charges.volumeSucceeded)}</span>
-                  <span style={{ fontFamily: "var(--font-mono)" }}>Ledger {formatGHS(a.ledger.net)}</span>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>Ledger net</span>
+                  <strong style={{ fontFamily: "var(--font-mono)", color: a.ledger.net >= 0 ? "var(--color-ok-ink)" : "var(--color-bad-ink)" }}>{formatGHS(a.ledger.net)}</strong>
                 </div>
-                <div className="row" style={{ marginTop: 10, gap: 6 }}>
-                  <Link to="/charges"><Button className="btn ghost" style={{ padding: "4px 8px", fontSize: 12 }}>Charges</Button></Link>
-                  <Link to="/ledger"><Button className="btn ghost" style={{ padding: "4px 8px", fontSize: 12 }}>Ledger</Button></Link>
+                <div style={{ display: "flex", justifyContent: "space-between", color: "var(--color-ink-muted)" }}>
+                  <span>Success rate</span>
+                  <span>{a.charges.total ? ((a.charges.succeeded / a.charges.total) * 100).toFixed(0) : 0}%</span>
                 </div>
               </div>
-            ))}
-            {perApp.length === 0 ? <span className="muted">No products yet.</span> : null}
-          </div>
-        </div>
-
-        <div className="card">
-          <h2>Apps</h2>
-          <div style={{ display: "flex", gap: 12, marginTop: 10, marginBottom: 12 }}>
-            <span className="pill succeeded">{appsActive} active</span>
-            <span className="pill failed">{appsRevoked} revoked</span>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {appsQ.data.slice(0, 5).map((a) => (
-              <div key={a.id} className="row" style={{ justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid var(--color-line-faint)" }}>
-                <div className="row" style={{ gap: 8 }}>
-                  <span className="mono" style={{ fontSize: 13 }}>{a.name}</span>
-                  <span className="pill" style={{ fontSize: 11 }}>{a.product}</span>
-                </div>
-                <span className="muted" style={{ fontSize: 12 }}>{a.last_used_at ? formatDate(a.last_used_at) : "never"}</span>
+              <div style={{ display: "flex", gap: 8, marginTop: 12, borderTop: "1px solid var(--color-line-faint)", paddingTop: 10 }}>
+                <Link to="/charges"><Button className="btn ghost" style={{ padding: "4px 10px", fontSize: 13 }}>Charges</Button></Link>
+                <Link to="/ledger"><Button className="btn ghost" style={{ padding: "4px 10px", fontSize: 13 }}>Ledger</Button></Link>
               </div>
-            ))}
-          </div>
-          <Link to="/apps"><Button className="btn" style={{ width: "100%", marginTop: 12 }}>Manage apps</Button></Link>
+            </div>
+          ))}
+          {perApp.length === 0 ? <span className="muted">No apps yet.</span> : null}
         </div>
       </div>
 
+      {/* Apps and recent activity */}
       <div className="grid2">
+        <div className="card">
+          <h2 style={{ marginBottom: 10 }}>Apps</h2>
+          <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+            <span className="pill succeeded">{appsActive} active</span>
+            <span className="pill failed">{appsRevoked} revoked</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {appsQ.data.slice(0, 5).map((a) => (
+              <div key={a.id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid var(--color-line-faint)", fontSize: 14 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <span className="mono" style={{ fontWeight: 500 }}>{a.name}</span>
+                </div>
+                <span className="muted" style={{ fontSize: 13 }}>{a.last_used_at ? formatDate(a.last_used_at) : "never"}</span>
+              </div>
+            ))}
+          </div>
+          <Link to="/apps"><Button className="btn" style={{ width: "100%", marginTop: 14 }}>Manage apps</Button></Link>
+        </div>
+
         <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-          <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--color-line-faint)", background: "var(--color-surface-soft)" }}>
-            <strong style={{ fontSize: 13 }}>Recent charges</strong>
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--color-line-faint)", background: "var(--color-surface-soft)" }}>
+            <strong style={{ fontSize: 14 }}>Recent charges</strong>
           </div>
           <div style={{ overflowX: "auto" }}>
             <table>
-              <thead><tr><th>ref</th><th>product</th><th>amount</th><th>status</th></tr></thead>
+              <thead><tr><th>ref</th><th>app</th><th>amount</th><th>status</th></tr></thead>
               <tbody>
                 {chargesQ.data.slice(0, 5).map((r) => (
                   <tr key={r.ref}>
                     <td className="mono" title={r.ref} style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.ref}</td>
                     <td>{r.product}</td>
-                    <td>{formatGHS(r.amount_pesewas)}</td>
+                    <td style={{ fontFamily: "var(--font-mono)", fontWeight: 500 }}>{formatGHS(r.amount_pesewas)}</td>
                     <td><span className={`pill ${r.status}`}>{r.status}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-          <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--color-line-faint)", background: "var(--color-surface-soft)" }}>
-            <strong style={{ fontSize: 13 }}>Webhook inbox</strong>
-          </div>
-          <div style={{ overflowX: "auto" }}>
-            <table>
-              <thead><tr><th>event</th><th>gateway</th><th>received</th><th>status</th></tr></thead>
-              <tbody>
-                {webhooksQ.data.slice(0, 4).map((w) => (
-                  <tr key={w.id}>
-                    <td className="mono" style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.aggregator_event_id}</td>
-                    <td>{w.gateway}</td>
-                    <td className="muted">{formatDate(w.received_at)}</td>
-                    <td><span className={`pill ${w.processed_at ? "succeeded" : "pending"}`}>{w.processed_at ? "done" : "pending"}</span></td>
                   </tr>
                 ))}
               </tbody>
