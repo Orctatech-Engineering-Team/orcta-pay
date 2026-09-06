@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { OrctaPayError } from "@orctatech/orcta-pay";
 import { makeClient } from "../lib/api";
 import { formatDate, formatGHS } from "../lib/format";
 import { mockCharges, type ChargeRow } from "../lib/mock";
@@ -101,16 +100,11 @@ export function ChargesPage() {
           onFetch={async () => {
             setLiveLoading(true);
             setLiveError(null);
-            try {
-              const client = makeClient();
-              const res = await client.getChargeStatus(selected.ref);
-              setLiveStatus(res);
-            } catch (e) {
-              if (e instanceof OrctaPayError) setLiveError(`${e.code} (${e.statusCode}): ${e.message}`);
-              else setLiveError(e instanceof Error ? e.message : String(e));
-            } finally {
-              setLiveLoading(false);
-            }
+            const client = makeClient();
+            const { data, error } = await client.getChargeStatus(selected.ref);
+            if (error) setLiveError(`${error.code} (${error.statusCode}): ${error.message}`);
+            else setLiveStatus(data);
+            setLiveLoading(false);
           }}
           onClose={() => setSelected(null)}
         />

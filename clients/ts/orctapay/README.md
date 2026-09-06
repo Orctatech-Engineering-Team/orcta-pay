@@ -4,17 +4,17 @@ Thin TypeScript client for the Orcta Pay API (`api/openapi.yaml`). Mirrors `clie
 
 - **Zero runtime dependencies** — native `fetch` + `AbortController`
 - **Runtime-agnostic** — Node 18+, Bun, Deno, browsers
-- **Typed errors** — throws `OrctaPayError` with `statusCode` / `code`
-- **Dual-published** — npm (`@orctatech/orcta-pay`) + JSR (`@orctatech/orcta-pay`)
+- **Resend / Effect style — never throws** — every method returns `{ data, error }` (`{ data: T, error: null } | { data: null, error: OrctaPayError }`)
+- **Dual-published** — npm (`@orctatech/orcta-pay`) + JSR (`@orctatech/orcta-pay`) — **pnpm only** (no npm)
 
 See `orcta-go-docs/PAYMENTS_SERVICE_DESIGN.md` for reference and idempotency rules. Amounts are whole pesewas in GHS (integer).
 
 ## Install
 
 ```bash
-npm install @orctatech/orcta-pay
+pnpm add @orctatech/orcta-pay
 # or
-npx jsr add @orctatech/orcta-pay
+pnpm dlx jsr add @orctatech/orcta-pay
 # or
 deno add jsr:@orctatech/orcta-pay
 ```

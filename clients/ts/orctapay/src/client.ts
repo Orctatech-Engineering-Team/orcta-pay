@@ -8,6 +8,11 @@ import type {
   PayoutResult,
 } from "./types.js";
 
+/** Resend-style result — never throws, always returns data or error. */
+export type Result<T> =
+  | { data: T; error: null }
+  | { data: null; error: OrctaPayError };
+
 export const DEFAULT_BASE_URL = "http://localhost:8080";
 const DEFAULT_TIMEOUT_MS = 10_000;
 
@@ -50,7 +55,7 @@ export class OrctaPay {
   }
 
   /** Initiate a charge. Generates idempotency_key when not supplied. */
-  async createCharge(req: CreateChargeRequest): Promise<ChargeResult> {
+  async createCharge(req: CreateChargeRequest): Promise<Result<ChargeResult>> {
     let key = req.idempotency_key;
     if (!key) {
       const product = req.product || "default";
@@ -77,61 +82,73 @@ export class OrctaPay {
 
     if (req.metadata) body["metadata"] = req.metadata;
 
-    const wire = await this.doJSON<ChargeWire>(
-      "POST",
-      "/v1/charges",
-      body,
-    );
+    try {
+      const wire = await this.doJSON<ChargeWire>("POST", "/v1/charges", body);
 
-    switch (wire.status) {
-      case "pending":
-        return {
-          status: "pending",
-          ref: wire.ref,
-          gateway: wire.gateway,
-          external_ref: wire.external_ref,
-        };
-      case "succeeded":
-        return {
-          status: "succeeded",
-          ref: wire.ref,
-          gateway: wire.gateway,
-          amount_pesewas: wire.amount_pesewas,
-          currency: wire.currency,
-          external_ref: wire.external_ref,
-        };
-      case "failed":
-        return { status: "failed", reason: wire.status };
-      default: {
-        if (wire.ref) {
-          return {
+      let data: ChargeResult;
+      switch (wire.status) {
+        case "pending":
+          data = {
             status: "pending",
             ref: wire.ref,
             gateway: wire.gateway,
             external_ref: wire.external_ref,
           };
+          break;
+        case "succeeded":
+          data = {
+            status: "succeeded",
+            ref: wire.ref,
+            gateway: wire.gateway,
+            amount_pesewas: wire.amount_pesewas,
+            currency: wire.currency,
+            external_ref: wire.external_ref,
+          };
+          break;
+        case "failed":
+          data = { status: "failed", reason: wire.status };
+          break;
+        default: {
+          if (wire.ref) {
+            data = {
+              status: "pending",
+              ref: wire.ref,
+              gateway: wire.gateway,
+              external_ref: wire.external_ref,
+            };
+          } else {
+            data = { status: "failed", reason: `unknown status: ${wire.status}` };
+          }
+          break;
         }
-        return { status: "failed", reason: `unknown status: ${wire.status}` };
       }
+      return { data, error: null };
+    } catch (e) {
+      return { data: null, error: e instanceof OrctaPayError ? e : new OrctaPayError("unknown", 0, "unknown", e) };
     }
   }
 
   /** Fetch authoritative status for a charge. */
-  async getChargeStatus(ref: string): Promise<ChargeStatus> {
+  async getChargeStatus(ref: string): Promise<Result<ChargeStatus>> {
     if (!ref) {
-      throw new OrctaPayError("ref is required", 400, "invalid_request");
+      return { data: null, error: new OrctaPayError("ref is required", 400, "invalid_request") };
     }
     const path = `/v1/charges/${encodeURIComponent(ref)}/status`;
-    return this.doJSON<ChargeStatus>("GET", path, undefined);
+    try {
+      const data = await this.doJSON<ChargeStatus>("GET", path, undefined);
+      return { data, error: null };
+    } catch (e) {
+      return { data: null, error: e instanceof OrctaPayError ? e : new OrctaPayError("unknown", 0, "unknown", e) };
+    }
   }
 
   /** Create a payout batch. */
-  async createPayout(req: CreatePayoutRequest): Promise<PayoutResult> {
+  async createPayout(req: CreatePayoutRequest): Promise<Result<PayoutResult>> {
     if (!req.product) {
-      throw new OrctaPayError("product is required", 400, "invalid_request");
+      return { data: null, error: new OrctaPayError("product is required", 400, "invalid_request") };
     }
     if (!req.entries || req.entries.length === 0) {
-      throw new OrctaPayError("entries required", 400, "invalid_request");
+      return { data: null, error: new OrctaPayError("entries required", 400, "invalid_request") };
     }
 
     const entries = req.entries.map((e) => ({
@@ -146,7 +163,12 @@ export class OrctaPay {
     };
     if (req.idempotency_key) body["idempotency_key"] = req.idempotency_key;
 
-    return this.doJSON<PayoutResult>("POST", "/v1/payouts", body);
+    try {
+      const data = await this.doJSON<PayoutResult>("POST", "/v1/payouts", body);
+      return { data, error: null };
+    } catch (e) {
+      return { data: null, error: e instanceof OrctaPayError ? e : new OrctaPayError("unknown", 0, "unknown", e) };
+    }
   }
 
   private async doJSON<T>(

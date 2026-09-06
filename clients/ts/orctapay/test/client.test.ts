@@ -33,7 +33,6 @@ describe("OrctaPay", () => {
 
     mockFetchOnce(async (_url, init) => {
       gotAuth = (init?.headers as Record<string, string>)?.["Authorization"] ?? "";
-      // also handle Headers instance
       if (!gotAuth && init?.headers instanceof Headers) {
         gotAuth = init.headers.get("Authorization") ?? "";
       }
@@ -50,21 +49,23 @@ describe("OrctaPay", () => {
     });
 
     const client = new OrctaPay({ baseUrl: "http://example.test", apiKey: "test-key" });
-    const res = await client.createCharge({
+    const { data, error } = await client.createCharge({
       product: "orctago",
       amount_pesewas: 1800,
       currency: "GHS",
       wallet: "0241234567",
     });
 
+    expect(error).toBeNull();
+    expect(data).not.toBeNull();
     expect(gotAuth).toBe("Bearer test-key");
     const key = gotBody["idempotency_key"] as string;
     expect(key.startsWith("optd-")).toBe(true);
     expect(key).toMatch(/^optd-orctago-hubtel-[0-9A-Z]{26}$/);
-    expect(res.status).toBe("pending");
-    if (res.status === "pending") {
-      expect(res.ref).toBe("optd-orctago-hubtel-01ARZ3NDEKTSV4RRFFQ69G5FAV");
-      expect(res.gateway).toBe("hubtel");
+    expect(data?.status).toBe("pending");
+    if (data?.status === "pending") {
+      expect(data.ref).toBe("optd-orctago-hubtel-01ARZ3NDEKTSV4RRFFQ69G5FAV");
+      expect(data.gateway).toBe("hubtel");
     }
   });
 
@@ -79,7 +80,7 @@ describe("OrctaPay", () => {
     });
 
     const client = new OrctaPay({ baseUrl: "http://example.test", apiKey: "k" });
-    await client.createCharge({
+    const { data, error } = await client.createCharge({
       product: "orctago",
       amount_pesewas: 100,
       currency: "GHS",
@@ -87,6 +88,8 @@ describe("OrctaPay", () => {
       idempotency_key: "optd-orctago-hubtel-01CUSTOMKEY12345678901234",
     });
 
+    expect(error).toBeNull();
+    expect(data).not.toBeNull();
     expect(gotBody["idempotency_key"]).toBe("optd-orctago-hubtel-01CUSTOMKEY12345678901234");
   });
 
@@ -105,15 +108,16 @@ describe("OrctaPay", () => {
       ),
     );
     const client = new OrctaPay({ baseUrl: "http://example.test", apiKey: "k" });
-    const res = await client.createCharge({
+    const { data, error } = await client.createCharge({
       product: "orctago",
       amount_pesewas: 1800,
       wallet: "0241234567",
     });
-    expect(res.status).toBe("succeeded");
-    if (res.status === "succeeded") {
-      expect(res.amount_pesewas).toBe(1800);
-      expect(res.currency).toBe("GHS");
+    expect(error).toBeNull();
+    expect(data?.status).toBe("succeeded");
+    if (data?.status === "succeeded") {
+      expect(data.amount_pesewas).toBe(1800);
+      expect(data.currency).toBe("GHS");
     }
   });
 
@@ -137,11 +141,12 @@ describe("OrctaPay", () => {
     });
 
     const client = new OrctaPay({ baseUrl: "http://example.test", apiKey: "k" });
-    const st = await client.getChargeStatus("optd-orctago-hubtel-01ARZ3NDEKTSV4RRFFQ69G5FAV");
+    const { data, error } = await client.getChargeStatus("optd-orctago-hubtel-01ARZ3NDEKTSV4RRFFQ69G5FAV");
+    expect(error).toBeNull();
     expect(gotPath).toBe("/v1/charges/optd-orctago-hubtel-01ARZ3NDEKTSV4RRFFQ69G5FAV/status");
     expect(gotAuth).toBe("Bearer k");
-    expect(st.status).toBe("succeeded");
-    expect(st.ref).toBeTruthy();
+    expect(data?.status).toBe("succeeded");
+    expect(data?.ref).toBeTruthy();
   });
 
   it("createPayout posts entries and returns batch", async () => {
@@ -166,72 +171,73 @@ describe("OrctaPay", () => {
     });
 
     const client = new OrctaPay({ baseUrl: "http://example.test", apiKey: "k" });
-    const res = await client.createPayout({
+    const { data, error } = await client.createPayout({
       product: "orctago",
       entries: [
         { recipient: "0241111111", amount_pesewas: 1000 },
         { recipient: "0242222222", amount_pesewas: 1000 },
       ],
     });
-    expect(res.batch_id).toBe("550e8400-e29b-41d4-a716-446655440000");
-    expect(res.total_pesewas).toBe(2000);
+    expect(error).toBeNull();
+    expect(data?.batch_id).toBe("550e8400-e29b-41d4-a716-446655440000");
+    expect(data?.total_pesewas).toBe(2000);
     expect(gotBody["product"]).toBe("orctago");
     const entries = gotBody["entries"] as unknown[];
     expect(entries.length).toBe(2);
   });
 
-  it("throws OrctaPayError on 401", async () => {
+  it("createCharge returns error on 401", async () => {
     mockFetchOnce(async () =>
       jsonResponse({ error: { code: "unauthorized", message: "bad key" } }, { status: 401 }),
     );
     const client = new OrctaPay({ baseUrl: "http://example.test", apiKey: "bad" });
-    await expect(
-      client.createCharge({ product: "orctago", amount_pesewas: 100, wallet: "0241234567" }),
-    ).rejects.toMatchObject({ statusCode: 401, code: "unauthorized" } as Partial<OrctaPayError>);
+    const { data, error } = await client.createCharge({ product: "orctago", amount_pesewas: 100, wallet: "0241234567" });
+    expect(data).toBeNull();
+    expect(error).not.toBeNull();
+    expect(error?.statusCode).toBe(401);
+    expect(error?.code).toBe("unauthorized");
   });
 
-  it("throws on 500 with internal_error", async () => {
+  it("returns error on 500", async () => {
     mockFetchOnce(async () =>
       jsonResponse({ error: { code: "internal_error", message: "boom" } }, { status: 500 }),
     );
     const client = new OrctaPay({ baseUrl: "http://example.test", apiKey: "k" });
-    await expect(
-      client.createCharge({ product: "orctago", amount_pesewas: 100, wallet: "0241234567" }),
-    ).rejects.toMatchObject({ statusCode: 500 } as Partial<OrctaPayError>);
-
-    // Also for getChargeStatus and createPayout.
-    mockFetchOnce(async () =>
-      jsonResponse({ error: { code: "internal_error", message: "boom" } }, { status: 500 }),
-    );
-    await expect(client.getChargeStatus("optd-orctago-hubtel-01ARZ3NDEKTSV4RRFFQ69G5FAV")).rejects.toMatchObject({
-      statusCode: 500,
-    } as Partial<OrctaPayError>);
+    const { data: d1, error: e1 } = await client.createCharge({ product: "orctago", amount_pesewas: 100, wallet: "0241234567" });
+    expect(d1).toBeNull();
+    expect(e1?.statusCode).toBe(500);
 
     mockFetchOnce(async () =>
       jsonResponse({ error: { code: "internal_error", message: "boom" } }, { status: 500 }),
     );
-    await expect(
-      client.createPayout({
-        product: "orctago",
-        entries: [{ recipient: "0241", amount_pesewas: 100 }],
-      }),
-    ).rejects.toMatchObject({ statusCode: 500 } as Partial<OrctaPayError>);
+    const { data: d2, error: e2 } = await client.getChargeStatus("optd-orctago-hubtel-01ARZ3NDEKTSV4RRFFQ69G5FAV");
+    expect(d2).toBeNull();
+    expect(e2?.statusCode).toBe(500);
+
+    mockFetchOnce(async () =>
+      jsonResponse({ error: { code: "internal_error", message: "boom" } }, { status: 500 }),
+    );
+    const { data: d3, error: e3 } = await client.createPayout({
+      product: "orctago",
+      entries: [{ recipient: "0241", amount_pesewas: 100 }],
+    });
+    expect(d3).toBeNull();
+    expect(e3?.statusCode).toBe(500);
   });
 
-  it("throws on 404 not_found", async () => {
+  it("returns error on 404 not_found", async () => {
     mockFetchOnce(async () =>
       jsonResponse({ error: { code: "not_found", message: "no such charge" } }, { status: 404 }),
     );
     const client = new OrctaPay({ baseUrl: "http://example.test", apiKey: "k" });
-    await expect(client.getChargeStatus("optd-orctago-hubtel-01NOTFOUND0000000000000")).rejects.toMatchObject({
-      statusCode: 404,
-      code: "not_found",
-    } as Partial<OrctaPayError>);
+    const { data, error } = await client.getChargeStatus("optd-orctago-hubtel-01NOTFOUND0000000000000");
+    expect(data).toBeNull();
+    expect(error?.statusCode).toBe(404);
+    expect(error?.code).toBe("not_found");
   });
 
   it("times out", async () => {
     mockFetchOnce(async (_url, init) => {
-      // Respect abort signal like a real server would hang.
       return new Promise<Response>((_resolve, reject) => {
         const sig = init?.signal as AbortSignal | undefined;
         if (sig) {
@@ -243,9 +249,10 @@ describe("OrctaPay", () => {
     });
 
     const client = new OrctaPay({ baseUrl: "http://example.test", apiKey: "k", timeout: 50 });
-    await expect(
-      client.createCharge({ product: "orctago", amount_pesewas: 100, wallet: "0241234567" }),
-    ).rejects.toMatchObject({ statusCode: 408, code: "timeout" } as Partial<OrctaPayError>);
+    const { data, error } = await client.createCharge({ product: "orctago", amount_pesewas: 100, wallet: "0241234567" });
+    expect(data).toBeNull();
+    expect(error?.statusCode).toBe(408);
+    expect(error?.code).toBe("timeout");
   });
 
   it("trims trailing slash from baseUrl", async () => {
@@ -258,7 +265,9 @@ describe("OrctaPay", () => {
       );
     });
     const client = new OrctaPay({ baseUrl: "http://example.test///", apiKey: "k" });
-    await client.createCharge({ product: "orctago", amount_pesewas: 100, wallet: "024" });
+    const { data, error } = await client.createCharge({ product: "orctago", amount_pesewas: 100, wallet: "024" });
+    expect(error).toBeNull();
+    expect(data).not.toBeNull();
     expect(gotUrl).toBe("http://example.test/v1/charges");
   });
 

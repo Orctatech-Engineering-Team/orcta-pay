@@ -35,11 +35,12 @@
   "engines": {
     "node": ">=18"
   },
+  "packageManager": "pnpm@10.12.1",
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "pnpm run build"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",
