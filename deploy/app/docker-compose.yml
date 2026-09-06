@@ -3,7 +3,7 @@
 #
 # 1. NO container_name or host ports.
 # 2. Primary service MUST be named `web`.
-# 3. Internal app port MUST be 8080.
+# 3. Internal app port MUST match HTTP_PORT (8085).
 
 x-logging: &logging
   driver: json-file
