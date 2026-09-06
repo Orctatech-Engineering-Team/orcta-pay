@@ -6,6 +6,7 @@ import { Select } from "@base-ui/react/select";
 import { Toast } from "@base-ui/react/toast";
 import { checkHealth } from "../lib/api";
 import { getApiKey, getBaseUrl, getProduct, setProduct, maskKey } from "../lib/config";
+import { getTheme, toggleTheme, type Theme } from "../lib/theme";
 import { SettingsModal } from "./SettingsModal";
 
 const NAV = [
@@ -28,6 +29,7 @@ export function Layout() {
       return "all";
     }
   });
+  const [theme, setThemeState] = useState<Theme>(() => getTheme());
   const apiKey = getApiKey();
   const baseUrl = getBaseUrl();
   const navigate = useNavigate();
@@ -136,7 +138,7 @@ export function Layout() {
             </Button>
           </div>
           <div className="rail-foot">
-            Orcta Pay dashboard — Workbench · Cobalt
+            Orcta Pay dashboard — Workbench
             <br />
             <span className="muted">N3 rail · Ft1 minimal · <code>/v1</code> proxy in dev</span>
           </div>
@@ -154,6 +156,24 @@ export function Layout() {
             </span>
           </div>
           <span className="work-header-spacer" />
+          <Button
+            className="theme-toggle"
+            onClick={() => setThemeState(toggleTheme())}
+            aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+            title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+          >
+            {theme === "dark" ? (
+              <svg className="theme-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <circle cx="12" cy="12" r="4" />
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+              </svg>
+            ) : (
+              <svg className="theme-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+              </svg>
+            )}
+            {theme === "dark" ? "Light" : "Dark"}
+          </Button>
           <span className={`badge ${health === "ok" ? "ok" : health === "down" ? "down" : ""}`}>
             <span className={`dot ${dotClass}`} style={{ marginRight: 6 }} />
             {healthLabel}
@@ -184,7 +204,7 @@ export function Layout() {
           <span>Vault <code>secret/orcta/orcta-pay/keys/{"{product}"}</code></span>
           <span>·</span>
           <span>TS client <code>@orctatech/orcta-pay</code> — pnpm only</span>
-          <span style={{ marginLeft: "auto" }}>Workbench · Cobalt · overall + per-app</span>
+          <span style={{ marginLeft: "auto" }}>Workbench · overall + per-app</span>
         </footer>
       </div>
 
