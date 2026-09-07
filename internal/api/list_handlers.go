@@ -217,7 +217,7 @@ func handleListWebhooks(app *platform.App) http.HandlerFunc {
 			return
 		}
 		gateway := r.URL.Query().Get("gateway")
-		query := `SELECT aggregator_event_id, gateway, payload, received_at::text, processed_at::text FROM webhook_inbox`
+		query := `SELECT aggregator_event_id, gateway, payload, received_at::text FROM webhook_inbox`
 		args := []any{}
 		if gateway != "" && gateway != "all" {
 			query += ` WHERE gateway = $1 ORDER BY received_at DESC LIMIT 100`
@@ -245,8 +245,7 @@ func handleListWebhooks(app *platform.App) http.HandlerFunc {
 			var aggID, gw string
 			var payload []byte
 			var receivedAt string
-			var processedAt *string
-			if err := rows.Scan(&aggID, &gw, &payload, &receivedAt, &processedAt); err != nil {
+			if err := rows.Scan(&aggID, &gw, &payload, &receivedAt); err != nil {
 				continue
 			}
 			var p any
@@ -255,7 +254,7 @@ func handleListWebhooks(app *platform.App) http.HandlerFunc {
 			}
 			out = append(out, wh{
 				ID: aggID, AggregatorEventID: aggID, Gateway: gw,
-				Payload: p, ReceivedAt: receivedAt, ProcessedAt: processedAt,
+				Payload: p, ReceivedAt: receivedAt, ProcessedAt: nil,
 			})
 		}
 		if out == nil {
