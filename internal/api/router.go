@@ -82,7 +82,7 @@ func NewRouter(app *platform.App) http.Handler {
 
 	// Single-image dashboard: serve static files from /usr/local/share/dashboard
 	// (Docker) or dashboard/dist (local dev), with SPA fallback to index.html.
-	r.Handle("/*", dashboardHandler())
+	r.Get("/*", dashboardHandler())
 
 	return r
 }
