@@ -82,9 +82,9 @@ func NewRouter(app *platform.App) http.Handler {
 
 	// Single-image dashboard: serve static files from /usr/local/share/dashboard
 	// (Docker) or dashboard/dist (local dev), with SPA fallback to index.html.
-	// Registered as Handle (not Get) so POST/DELETE/etc. to unknown paths
-	// return 404 instead of falling through to the SPA.
-	r.Handle("/*", dashboardHandler())
+	// chi.NotFound is only invoked when no registered route matches — it never
+	// shadows /auth/*, /v1/*, or /webhooks/* which are registered above.
+	r.NotFound(dashboardHandler())
 
 	return r
 }
@@ -112,13 +112,6 @@ func dashboardHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Non-GET requests are never dashboard traffic.
 		if r.Method != http.MethodGet {
-			http.NotFound(w, r)
-			return
-		}
-		// Don't intercept API routes that somehow fell through.
-		if strings.HasPrefix(r.URL.Path, "/v1/") || strings.HasPrefix(r.URL.Path, "/auth/") || strings.HasPrefix(r.URL.Path, "/webhooks/") ||
-			r.URL.Path == "/healthz" || r.URL.Path == "/readyz" || r.URL.Path == "/metrics" ||
-			r.URL.Path == "/openapi.yaml" || r.URL.Path == "/docs" {
 			http.NotFound(w, r)
 			return
 		}
