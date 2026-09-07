@@ -26,11 +26,11 @@ func NewRouter(app *platform.App) http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Heartbeat("/healthz"))
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"},
+		AllowedOrigins:   allowedOrigins(),
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Request-Id"},
 		ExposedHeaders:   []string{"X-Request-Id"},
-		AllowCredentials: false,
+		AllowCredentials: true,
 		MaxAge:           300,
 	}))
 
@@ -127,6 +127,22 @@ func dashboardHandler() http.HandlerFunc {
 		}
 		fs.ServeHTTP(w, r)
 	}
+}
+
+func allowedOrigins() []string {
+	if v := os.Getenv("CORS_ALLOWED_ORIGINS"); v != "" {
+		parts := strings.Split(v, ",")
+		var out []string
+		for _, p := range parts {
+			if s := strings.TrimSpace(p); s != "" {
+				out = append(out, s)
+			}
+		}
+		if len(out) > 0 {
+			return out
+		}
+	}
+	return []string{"http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://127.0.0.1:3000"}
 }
 
 func readinessHandler(app *platform.App) http.HandlerFunc {

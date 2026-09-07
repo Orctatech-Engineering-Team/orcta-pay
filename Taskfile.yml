@@ -126,6 +126,41 @@ tasks:
     desc: Tail local dependency logs
     cmd: docker compose logs -f
 
+  dev:setup:host:
+    desc: Setup host Postgres/Valkey for local dev (no docker) — creates DB/roles and migrates
+    cmds:
+      - test -f .env || cp .env.example .env
+      - test -f dashboard/.env || cp dashboard/.env.example dashboard/.env
+      - psql "postgres://postgres@localhost:5432/postgres?sslmode=disable" -c "CREATE DATABASE orcta_pay;" || true
+      - psql "postgres://postgres@localhost:5432/postgres?sslmode=disable" -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='orcta') THEN CREATE ROLE orcta WITH LOGIN SUPERUSER PASSWORD 'orcta'; END IF; END \$\$;"
+      - psql "postgres://postgres@localhost:5432/postgres?sslmode=disable" -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='orcta_pay') THEN CREATE ROLE orcta_pay WITH LOGIN PASSWORD 'orcta_pay'; END IF; END \$\$;"
+      - task: migrate:up
+      - echo "host setup done — .env at $DATABASE_URL, dashboard at http://localhost:5173"
+
+  dev:seed:
+    desc: Seed demo data (apps, charges, ledger, payouts, webhooks) via API + psql
+    cmds:
+      - bash scripts/seed.sh
+
+  dev:stack:
+    desc: Bring full local stack up (host Postgres/Valkey must be running) — API :8080, worker, dashboard :5173
+    cmds:
+      - task: dev:setup:host
+      - setsid bash -c 'set -a; source .env; set +a; exec go run ./cmd/api' > /tmp/api.log 2>&1 < /dev/null &
+      - setsid bash -c 'set -a; source .env; set +a; exec go run ./cmd/worker' > /tmp/worker.log 2>&1 < /dev/null &
+      - setsid bash -c 'pnpm --filter orcta-pay-dashboard dev' > /tmp/dashboard.log 2>&1 < /dev/null &
+      - sleep 3 && curl -s http://localhost:8080/readyz | grep -q ready && echo "API ready at http://localhost:8080 (log /tmp/api.log)" || (cat /tmp/api.log; exit 1)
+      - echo "Worker log /tmp/worker.log - Dashboard http://localhost:5173 (log /tmp/dashboard.log)"
+      - echo "Seed with task dev:seed and login with ORCTA_PAY_API_KEY from .env"
+
+  dev:stack:down:
+    desc: Bring full local stack down (kill API, worker, vite)
+    cmds:
+      - pkill -f "go run ./cmd/api" || true
+      - pkill -f "go run ./cmd/worker" || true
+      - pkill -f "vite" || true
+      - ss -tulpn | grep -E '8080|5173' || echo "all down"
+
   api:lint:
     desc: Validate the OpenAPI spec
     cmd: npx --yes {{.REDOCLY}} lint
