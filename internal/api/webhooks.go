@@ -16,6 +16,26 @@ import (
 	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/webhooks"
 )
 
+func handlePaystackCallback(app *platform.App) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ref := r.URL.Query().Get("trxref")
+		if ref == "" {
+			ref = r.URL.Query().Get("reference")
+		}
+		if ref == "" {
+			ref = r.URL.Query().Get("ref")
+		}
+		if ref == "" {
+			http.Redirect(w, r, "https://pay.orctatech.com/", http.StatusFound)
+			return
+		}
+		// Webhook POST (charge.success) is what flips ledger; this GET
+		// redirect just sends the browser to the dashboard. Dashboard's
+		// live Verify (GET /v1/charges/{ref}/status) will show succeeded.
+		http.Redirect(w, r, "https://pay.orctatech.com/", http.StatusFound)
+	}
+}
+
 func handleWebhook(app *platform.App, gatewayName string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))

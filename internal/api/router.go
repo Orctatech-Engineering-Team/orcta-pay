@@ -76,6 +76,7 @@ func NewRouter(app *platform.App) http.Handler {
 		r.Post("/apps/{appID}/keys/rotate", handleRotateAppKey(app))
 		r.Delete("/apps/{appID}", handleRevokeApp(app))
 	})
+	r.Get("/webhooks/paystack", handlePaystackCallback(app))
 	r.Post("/webhooks/hubtel", handleWebhook(app, "hubtel"))
 	r.Post("/webhooks/paystack", handleWebhook(app, "paystack"))
 	r.Post("/webhooks/moolre", handleWebhook(app, "moolre"))
