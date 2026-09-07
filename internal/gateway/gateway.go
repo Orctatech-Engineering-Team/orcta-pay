@@ -46,10 +46,11 @@ type InitiateRequest struct {
 
 // InitiateResponse is the normalized gateway response.
 type InitiateResponse struct {
-	ExternalRef string
-	Status      string
-	RawRequest  []byte
-	RawResponse []byte
+	ExternalRef      string
+	Status           string
+	AuthorizationURL string
+	RawRequest       []byte
+	RawResponse      []byte
 }
 
 // VerifyResult is the authoritative status from GetTransactionStatus.

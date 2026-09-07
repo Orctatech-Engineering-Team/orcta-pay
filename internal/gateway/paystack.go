@@ -180,7 +180,7 @@ func (a *PaystackAdapter) Initiate(ctx context.Context, req InitiateRequest) (In
 	if ref == "" {
 		ref = req.Reference
 	}
-	return InitiateResponse{ExternalRef: ref, Status: "pending", RawRequest: body, RawResponse: respBody}, nil
+	return InitiateResponse{ExternalRef: ref, Status: "pending", AuthorizationURL: pr.Data.AuthorizationURL, RawRequest: body, RawResponse: respBody}, nil
 }
 
 // Verify returns authoritative status via GET /transaction/verify/:reference.

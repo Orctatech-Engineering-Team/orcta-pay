@@ -418,6 +418,7 @@ components:
         currency: { type: string }
         status: { type: string, enum: [pending, succeeded, failed] }
         external_ref: { type: string }
+        authorization_url: { type: string, description: "Paystack checkout URL, present when gateway is paystack and status is pending" }
         created_at: { type: string, format: date-time }
       required: [ref, product, gateway, amount_pesewas, currency, status, created_at]
 

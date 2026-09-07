@@ -50,7 +50,7 @@ func handleCreateCharge(app *platform.App) http.HandlerFunc {
 		switch v := result.(type) {
 		case charges.ChargePending:
 			writeJSON(w, http.StatusCreated, map[string]any{
-				"ref": v.Ref, "gateway": v.Gateway, "status": "pending", "external_ref": v.ExternalRef,
+				"ref": v.Ref, "gateway": v.Gateway, "status": "pending", "external_ref": v.ExternalRef, "authorization_url": v.AuthorizationURL,
 			})
 		case charges.ChargeFailed:
 			writeError(w, http.StatusBadGateway, "unavailable", v.Reason)

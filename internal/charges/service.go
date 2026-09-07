@@ -41,9 +41,10 @@ type ChargeSucceeded struct {
 
 // ChargePending holds the reference for a pending charge.
 type ChargePending struct {
-	Ref         string
-	Gateway     gateway.Gateway
-	ExternalRef string
+	Ref              string
+	Gateway          gateway.Gateway
+	ExternalRef      string
+	AuthorizationURL string
 }
 
 // ChargeFailed holds the failure reason.
@@ -136,7 +137,7 @@ func (s *Service) Initiate(ctx context.Context, req ChargeRequest) (ChargeResult
 	}
 	s.router.RecordResult(ctx, chosen, true)
 	observability.SetEventField(ctx, "charge_ref", ref)
-	return ChargePending{Ref: ref, Gateway: chosen, ExternalRef: resp.ExternalRef}, nil
+	return ChargePending{Ref: ref, Gateway: chosen, ExternalRef: resp.ExternalRef, AuthorizationURL: resp.AuthorizationURL}, nil
 }
 
 // Status calls the gateway Verify for authoritative truth.
