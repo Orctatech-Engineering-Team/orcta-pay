@@ -103,3 +103,4 @@ observability.LoggerFromContext(ctx).InfoContext(ctx, "charge_initiated")
 ```
 
 Each request emits one wide event with every layer's fields on a single line, alongside level-based logs. Every `ERROR` should have an alert attached.
+# deploy
