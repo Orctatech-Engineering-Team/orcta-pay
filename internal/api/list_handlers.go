@@ -5,7 +5,9 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/gateway"
 	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/platform"
+	valkeystore "github.com/Orctatech-Engineering-Team/orcta-pay/internal/storage/valkey"
 )
 
 func handleListCharges(app *platform.App) http.HandlerFunc {
@@ -266,12 +268,63 @@ func handleListWebhooks(app *platform.App) http.HandlerFunc {
 
 func handleGatewayHealth(app *platform.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if app.Pool == nil {
-			writeJSON(w, http.StatusOK, []any{})
-			return
+		type row struct {
+			Gateway            string  `json:"gateway"`
+			Channel            string  `json:"channel"`
+			Eligible           bool    `json:"eligible"`
+			RollingSuccessRate float64 `json:"rolling_success_rate"`
+			P95LatencyMs       int     `json:"p95_latency_ms"`
+			CircuitState       string  `json:"circuit_state"`
+			CostBps            int     `json:"cost_bps"`
+			CostFixedPesewas   int     `json:"cost_fixed_pesewas"`
+			Rank               int     `json:"rank"`
+			OpenSince          *string `json:"open_since"`
 		}
-		_ = r
-		_ = app
-		writeJSON(w, http.StatusOK, []any{})
+		ctx := r.Context()
+		health := valkeystore.NewHealthStore(app.Valkey)
+		gateways := []string{"paystack", "hubtel", "moolre"}
+		disabled := map[string]bool{
+			"paystack": app.Config.Payments.Paystack.Disabled(),
+			"hubtel":   app.Config.Payments.Hubtel.Disabled(),
+			"moolre":   app.Config.Payments.Moolre.Disabled(),
+		}
+		rows := make([]row, 0, len(gateways))
+		for _, gw := range gateways {
+			rate, _ := health.SuccessRate(ctx, gateway.Gateway(gw))
+			open, _ := health.IsCircuitOpen(ctx, gateway.Gateway(gw))
+			state := "closed"
+			if open {
+				state = "open"
+			}
+			eligible := !disabled[gw] && !open && rate >= 0.95
+			rows = append(rows, row{
+				Gateway: gw, Channel: "ghs", Eligible: eligible,
+				RollingSuccessRate: rate, P95LatencyMs: 0,
+				CircuitState: state, CostBps: 0, CostFixedPesewas: 0, Rank: 99,
+			})
+		}
+		if app.Router != nil {
+			ordered := app.Router.Route(ctx)
+			rankMap := map[string]int{}
+			for i, g := range ordered {
+				rankMap[string(g)] = i + 1
+			}
+			for i := range rows {
+				if rows[i].Eligible {
+					if rank, ok := rankMap[rows[i].Gateway]; ok {
+						rows[i].Rank = rank
+					}
+				}
+			}
+		} else {
+			rank := 1
+			for i := range rows {
+				if rows[i].Eligible {
+					rows[i].Rank = rank
+					rank++
+				}
+			}
+		}
+		writeJSON(w, http.StatusOK, rows)
 	}
 }
