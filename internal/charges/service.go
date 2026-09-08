@@ -62,6 +62,13 @@ type IntentStore interface {
 	UpdateStatus(ctx context.Context, ref string, status string) error
 }
 
+// outboxWriter is an optional seam for the transactional outbox. Stores that
+// implement it (PostgresStore, MemoryStore) will have a pending gateway_events
+// row inserted alongside the intent so the worker can later Verify/Settle.
+type outboxWriter interface {
+	InsertOutboxEvent(ctx context.Context, ref string, gw gateway.Gateway) error
+}
+
 // Service orchestrates charges.
 type Service struct {
 	store  IntentStore
@@ -112,6 +119,12 @@ func (s *Service) Initiate(ctx context.Context, req ChargeRequest) (ChargeResult
 	}
 	if err := s.store.CreateIntent(ctx, ref, req, chosen, req.Amount); err != nil {
 		return nil, fmt.Errorf("charges: create intent: %w", err)
+	}
+	// Transactional outbox: insert pending gateway_events row for worker drain.
+	if ow, ok := s.store.(outboxWriter); ok {
+		if err := ow.InsertOutboxEvent(ctx, ref, chosen); err != nil {
+			observability.LoggerFromContext(ctx).WarnContext(ctx, "charges: outbox insert failed", "ref", ref, "error", err)
+		}
 	}
 	adapter, ok := s.router.Adapter(chosen)
 	if !ok {

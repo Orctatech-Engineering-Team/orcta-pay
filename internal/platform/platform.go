@@ -33,6 +33,9 @@ type App struct {
 	Pool     *pgxpool.Pool
 	Valkey   valkey.Client
 	Observ   *observability.Provider
+	Locker   *valkeystore.Locker
+	MemStore *postgresstore.MemoryStore
+	PgStore  *postgresstore.PostgresStore
 }
 
 // Build wires the graph. Callers must close App.Close.
@@ -56,8 +59,10 @@ func Build(ctx context.Context, cfg config.Config) (*App, error) {
 	var ledgerStore ledger.Store
 	var appStore apps.Store
 	var webhookStore webhooks.Store
+	var pgStore *postgresstore.PostgresStore
+	var memStore *postgresstore.MemoryStore
 	if pool != nil {
-		pgStore := postgresstore.NewPostgresStore(pool)
+		pgStore = postgresstore.NewPostgresStore(pool)
 		chargeStore = pgStore
 		payoutStore = pgStore
 		ledgerStore = pgStore
@@ -65,7 +70,8 @@ func Build(ctx context.Context, cfg config.Config) (*App, error) {
 		appStore = postgresstore.NewPostgresAppsStore(pool)
 	} else {
 		observ.Logger.WarnContext(ctx, "postgres unavailable, using in-memory store — data will NOT persist")
-		mem := postgresstore.NewMemoryStore()
+		memStore = postgresstore.NewMemoryStore()
+		mem := memStore
 		chargeStore = mem
 		payoutStore = mem
 		ledgerStore = mem
@@ -103,6 +109,9 @@ func Build(ctx context.Context, cfg config.Config) (*App, error) {
 		Pool:     pool,
 		Valkey:   valkeyClient,
 		Observ:   observ,
+		Locker:   locker,
+		MemStore: memStore,
+		PgStore:  pgStore,
 	}
 	return app, nil
 }

@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/money"
 	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/payouts"
 	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/webhooks"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/worker"
 )
 
 // PostgresStore is the sqlc-backed implementation of the domain persistence
@@ -343,6 +345,136 @@ func (s *PostgresStore) reservationRowsChecked(ctx context.Context, id uuid.UUID
 		return fmt.Errorf("postgres: get reservation: %w", err)
 	}
 	return nil
+}
+
+// --- Worker outbox methods ---
+
+var _ worker.OutboxStore = (*PostgresStore)(nil)
+
+// ClaimPending returns up to limit pending gateway_events ordered by created_at.
+// Uses SELECT ... FOR UPDATE SKIP LOCKED so concurrent workers do not block.
+func (s *PostgresStore) ClaimPending(ctx context.Context, limit int32) ([]worker.GatewayEvent, error) {
+	rows, err := s.q.ClaimGatewayEventsForDispatch(ctx, limit)
+	if err != nil {
+		return nil, fmt.Errorf("postgres: claim gateway events: %w", err)
+	}
+	out := make([]worker.GatewayEvent, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, worker.GatewayEvent{
+			ID:        r.ID,
+			Ref:       r.Ref,
+			Gateway:   gateway.Gateway(r.Gateway),
+			Status:    r.Status,
+			CreatedAt: r.CreatedAt,
+		})
+	}
+	return out, nil
+}
+
+// GetIntent returns the payment intent for a ref.
+func (s *PostgresStore) GetIntent(ctx context.Context, ref string) (worker.Intent, error) {
+	row, err := s.q.GetPaymentIntentByRef(ctx, ref)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return worker.Intent{}, fmt.Errorf("postgres: intent %s: %w", ref, charges.ErrNotFound)
+		}
+		return worker.Intent{}, fmt.Errorf("postgres: get intent: %w", err)
+	}
+	wallet := ""
+	if row.Wallet.Valid {
+		wallet = row.Wallet.String
+	}
+	return worker.Intent{
+		Ref:     row.Ref,
+		Product: row.Product,
+		Amount:  money.New(row.AmountPesewas, money.Currency(row.Currency)),
+		Gateway: gateway.Gateway(row.Gateway),
+		Status:  row.Status,
+		Wallet:  wallet,
+	}, nil
+}
+
+// CompleteSucceeded updates gateway_events, payment_intents, and appends a ledger
+// entry in one transaction per the transactional outbox requirement.
+func (s *PostgresStore) CompleteSucceeded(ctx context.Context, eventID uuid.UUID, ref string, result gateway.VerifyResult, intent worker.Intent) error {
+	raw, _ := json.Marshal(map[string]string{"status": result.Status, "reference": result.Reference})
+	amt := result.Amount
+	if amt.IsZero() {
+		amt = intent.Amount
+	}
+	entry := ledger.LedgerEntry{
+		ID:          uuid.New(),
+		Kind:        ledger.KindCollection,
+		Ref:         ref,
+		Amount:      amt,
+		ValueTime:   result.VerifiedAt,
+		BookingTime: time.Now().UTC(),
+		Product:     intent.Product,
+	}
+	return s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		qtx := s.q.WithTx(tx)
+		// Update gateway event; raw_response stored via direct SQL because sqlc
+		// query does not include raw_response param.
+		if _, err := tx.Exec(ctx, `UPDATE gateway_events SET status='succeeded', raw_response=$2 WHERE id=$1`, eventID, raw); err != nil {
+			return fmt.Errorf("update gateway event: %w", err)
+		}
+		if err := qtx.UpdatePaymentIntentStatus(ctx, UpdatePaymentIntentStatusParams{Ref: ref, Status: "succeeded"}); err != nil {
+			return err
+		}
+		if err := qtx.InsertLedgerEntry(ctx, InsertLedgerEntryParams{
+			ID:            entry.ID,
+			Kind:          string(entry.Kind),
+			Ref:           entry.Ref,
+			AmountPesewas: entry.Amount.MinorUnits(),
+			Currency:      string(entry.Amount.Currency()),
+			ValueTime:     entry.ValueTime,
+			BookingTime:   entry.BookingTime,
+			Product:       entry.Product,
+		}); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+// CompleteFailed marks both gateway_events and payment_intents as failed.
+func (s *PostgresStore) CompleteFailed(ctx context.Context, eventID uuid.UUID, ref string, result gateway.VerifyResult) error {
+	raw, _ := json.Marshal(map[string]string{"status": result.Status, "reference": result.Reference})
+	return s.db.WithTx(ctx, func(ctx context.Context, tx pgx.Tx) error {
+		qtx := s.q.WithTx(tx)
+		if _, err := tx.Exec(ctx, `UPDATE gateway_events SET status='failed', raw_response=$2 WHERE id=$1`, eventID, raw); err != nil {
+			return fmt.Errorf("update gateway event: %w", err)
+		}
+		if err := qtx.UpdatePaymentIntentStatus(ctx, UpdatePaymentIntentStatusParams{Ref: ref, Status: "failed"}); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+// InsertOutboxEvent inserts a pending gateway_events row for the outbox.
+func (s *PostgresStore) InsertOutboxEvent(ctx context.Context, ref string, gw gateway.Gateway) error {
+	return s.q.InsertGatewayEvent(ctx, InsertGatewayEventParams{
+		ID:      uuid.New(),
+		Ref:     ref,
+		Gateway: string(gw),
+		Status:  "pending",
+	})
+}
+
+// MarkPendingRetry is a no-op heartbeat that leaves status pending; optionally
+// touches raw_response. For the thin slice we just ensure the row remains.
+func (s *PostgresStore) MarkPendingRetry(ctx context.Context, eventID uuid.UUID) error {
+	// Touch raw_response with empty to avoid stale data; keep status pending.
+	_, err := s.db.Pool().Exec(ctx, `UPDATE gateway_events SET raw_response = COALESCE(raw_response, '{}'::jsonb) WHERE id=$1 AND status='pending'`, eventID)
+	return err
+}
+
+// CountPending returns the number of pending gateway_events.
+func (s *PostgresStore) CountPending(ctx context.Context) (int64, error) {
+	var n int64
+	err := s.db.Pool().QueryRow(ctx, `SELECT COUNT(*) FROM gateway_events WHERE status='pending'`).Scan(&n)
+	return n, err
 }
 
 // FindBatch returns a batch by ID with its reservations as entries.
