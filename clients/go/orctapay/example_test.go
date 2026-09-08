@@ -8,7 +8,6 @@ import (
 	"os"
 
 	"github.com/Orctatech-Engineering-Team/orcta-pay/clients/go/orctapay"
-	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/money"
 )
 
 func ExampleClient_CreateCharge() {
@@ -25,9 +24,10 @@ func ExampleClient_CreateCharge() {
 	client := orctapay.NewClient(os.Getenv("ORCTA_PAY_URL"), os.Getenv("ORCTA_PAY_API_KEY"))
 
 	res, err := client.CreateCharge(context.Background(), orctapay.CreateChargeRequest{
-		Product: "orctago",
-		Amount:  money.New(1800, money.GHS),
-		Wallet:  "0241234567",
+		Product:       "orctago",
+		AmountPesewas: 1800,
+		Currency:      "GHS",
+		Wallet:        "0241234567",
 	})
 	if err != nil {
 		fmt.Println("error:", err)

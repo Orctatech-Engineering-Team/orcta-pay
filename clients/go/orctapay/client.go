@@ -18,8 +18,6 @@ import (
 	"os"
 	"strings"
 	"time"
-
-	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/money"
 )
 
 // DefaultBaseURL is used for local development.
@@ -99,7 +97,8 @@ func NewClient(baseURL, apiKey string, opts ...Option) *Client {
 // CreateChargeRequest is the input for POST /v1/charges.
 type CreateChargeRequest struct {
 	Product        string
-	Amount         money.Money
+	AmountPesewas  int64
+	Currency       string
 	Wallet         string
 	Phone          string
 	IdempotencyKey string
@@ -111,10 +110,11 @@ type ChargeResult interface{ isChargeResult() }
 
 // ChargeSucceeded indicates the charge settled.
 type ChargeSucceeded struct {
-	Ref         string
-	Gateway     string
-	Amount      money.Money
-	ExternalRef string
+	Ref           string
+	Gateway       string
+	AmountPesewas int64
+	Currency      string
+	ExternalRef   string
 }
 
 // ChargePending indicates the charge awaits confirmation.
@@ -151,17 +151,17 @@ type CreatePayoutRequest struct {
 
 // PayoutEntry is one recipient in a batch.
 type PayoutEntry struct {
-	Recipient string
-	Amount    money.Money
+	Recipient     string
+	AmountPesewas int64
+	Currency      string
 }
 
 // PayoutResult is the created batch.
 type PayoutResult struct {
-	BatchID      string `json:"batch_id"`
-	Product      string `json:"product"`
-	Status       string `json:"status"`
-	TotalPesewas int64  `json:"total_pesewas"`
-	Total        money.Money
+	BatchID      string    `json:"batch_id"`
+	Product      string    `json:"product"`
+	Status       string    `json:"status"`
+	TotalPesewas int64     `json:"total_pesewas"`
 	CreatedAt    time.Time `json:"created_at"`
 }
 
@@ -263,13 +263,13 @@ func (c *Client) CreateCharge(ctx context.Context, req CreateChargeRequest) (Cha
 		}
 		key = buildReference(product, newULID())
 	}
-	currency := string(req.Amount.Currency())
+	currency := req.Currency
 	if currency == "" {
-		currency = string(money.GHS)
+		currency = "GHS"
 	}
 	body := map[string]any{
 		"product":         req.Product,
-		"amount_pesewas":  req.Amount.MinorUnits(),
+		"amount_pesewas":  req.AmountPesewas,
 		"currency":        currency,
 		"idempotency_key": key,
 	}
@@ -303,8 +303,7 @@ func (c *Client) CreateCharge(ctx context.Context, req CreateChargeRequest) (Cha
 	case "pending":
 		return ChargePending{Ref: resp.Ref, Gateway: resp.Gateway, ExternalRef: resp.ExternalRef}, nil
 	case "succeeded":
-		amt := money.New(resp.AmountPesewas, money.Currency(resp.Currency))
-		return ChargeSucceeded{Ref: resp.Ref, Gateway: resp.Gateway, Amount: amt, ExternalRef: resp.ExternalRef}, nil
+		return ChargeSucceeded{Ref: resp.Ref, Gateway: resp.Gateway, AmountPesewas: resp.AmountPesewas, Currency: resp.Currency, ExternalRef: resp.ExternalRef}, nil
 	case "failed":
 		return ChargeFailed{Reason: resp.Status}, nil
 	default:
@@ -339,13 +338,13 @@ func (c *Client) CreatePayout(ctx context.Context, req CreatePayoutRequest) (Pay
 	}
 	entries := make([]map[string]any, 0, len(req.Entries))
 	for _, e := range req.Entries {
-		cur := string(e.Amount.Currency())
+		cur := e.Currency
 		if cur == "" {
-			cur = string(money.GHS)
+			cur = "GHS"
 		}
 		entries = append(entries, map[string]any{
 			"recipient":      e.Recipient,
-			"amount_pesewas": e.Amount.MinorUnits(),
+			"amount_pesewas": e.AmountPesewas,
 			"currency":       cur,
 		})
 	}
@@ -359,10 +358,6 @@ func (c *Client) CreatePayout(ctx context.Context, req CreatePayoutRequest) (Pay
 	var out PayoutResult
 	if err := c.doJSON(ctx, http.MethodPost, "/v1/payouts", body, &out); err != nil {
 		return PayoutResult{}, err
-	}
-	// Preserve money type from total_pesewas for caller convenience.
-	if out.TotalPesewas != 0 {
-		out.Total = money.New(out.TotalPesewas, money.GHS)
 	}
 	return out, nil
 }
