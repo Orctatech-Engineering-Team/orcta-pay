@@ -58,15 +58,29 @@ func (r *ChargerRouter) Route(ctx context.Context) []Gateway {
 }
 
 // InitiateWithFallback tries gateways in ranked order until one succeeds.
+// It rebuilds the reference per gateway when the incoming reference is parseable
+// so the optd-{product}-{gateway}-{ulid} segment matches the attempted gateway,
+// and it records health outcomes via RecordResult (skipping ErrNotConfigured).
 func (r *ChargerRouter) InitiateWithFallback(ctx context.Context, req InitiateRequest) (InitiateResponse, Gateway, error) {
 	var lastErr error
+	var product, ulid string
+	canRebuild := false
+	if prod, _, u, ok := ParseReference(req.Reference); ok {
+		product = prod
+		ulid = u
+		canRebuild = true
+	}
 	for _, g := range r.Route(ctx) {
 		adapter, ok := r.adapters[g]
 		if !ok {
 			continue
 		}
+		attemptReq := req
+		if canRebuild {
+			attemptReq.Reference = BuildReference(product, g, ulid)
+		}
 		start := time.Now()
-		resp, err := adapter.Initiate(ctx, req)
+		resp, err := adapter.Initiate(ctx, attemptReq)
 		duration := time.Since(start).Seconds()
 		if err == nil {
 			r.RecordResult(ctx, g, true)
