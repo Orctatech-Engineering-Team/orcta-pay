@@ -295,6 +295,7 @@ func handleGatewayHealth(app *platform.App) http.HandlerFunc {
 		for _, gw := range gateways {
 			rate, _ := health.SuccessRate(ctx, gateway.Gateway(gw))
 			open, _ := health.IsCircuitOpen(ctx, gateway.Gateway(gw))
+			p95, _ := health.P95Latency(ctx, gateway.Gateway(gw))
 			state := "closed"
 			if open {
 				state = "open"
@@ -302,7 +303,7 @@ func handleGatewayHealth(app *platform.App) http.HandlerFunc {
 			eligible := !disabled[gw] && !open && rate >= 0.95
 			rows = append(rows, row{
 				Gateway: gw, Channel: "ghs", Eligible: eligible,
-				RollingSuccessRate: rate, P95LatencyMs: 0,
+				RollingSuccessRate: rate, P95LatencyMs: p95,
 				CircuitState: state, CostBps: 0, CostFixedPesewas: 0, Rank: 99,
 			})
 		}
