@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/config"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/observability"
 )
 
 // HealthStore reports gateway health for ranking. Implemented by storage/valkey.
@@ -63,14 +65,20 @@ func (r *ChargerRouter) InitiateWithFallback(ctx context.Context, req InitiateRe
 		if !ok {
 			continue
 		}
+		start := time.Now()
 		resp, err := adapter.Initiate(ctx, req)
+		duration := time.Since(start).Seconds()
 		if err == nil {
+			r.RecordResult(ctx, g, true)
+			observability.ObserveGatewayDuration(string(g), true, duration)
 			return resp, g, nil
 		}
 		if errors.Is(err, ErrNotConfigured) {
 			lastErr = err
 			continue
 		}
+		r.RecordResult(ctx, g, false)
+		observability.ObserveGatewayDuration(string(g), false, duration)
 		lastErr = fmt.Errorf("gateway %s: %w", g, err)
 	}
 	if lastErr == nil {
@@ -88,6 +96,7 @@ func (r *ChargerRouter) Adapter(g Gateway) (AggregatorClient, bool) {
 // RecordResult forwards an outcome to the health store when one is wired.
 // Never fatal: health tracking must not break charge processing.
 func (r *ChargerRouter) RecordResult(ctx context.Context, g Gateway, success bool) {
+	observability.ObserveGatewayResult(string(g), success)
 	if r.health == nil {
 		return
 	}

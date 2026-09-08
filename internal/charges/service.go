@@ -117,6 +117,7 @@ func (s *Service) Initiate(ctx context.Context, req ChargeRequest) (ChargeResult
 	if !ok {
 		return ChargePending{Ref: ref, Gateway: chosen}, nil
 	}
+	start := time.Now()
 	resp, err := adapter.Initiate(ctx, gateway.InitiateRequest{
 		Reference:      ref,
 		Amount:         req.Amount,
@@ -124,6 +125,7 @@ func (s *Service) Initiate(ctx context.Context, req ChargeRequest) (ChargeResult
 		Product:        req.Product,
 		IdempotencyKey: req.IdempotencyKey,
 	})
+	duration := time.Since(start).Seconds()
 	if err != nil {
 		// Persist failure but keep intent for reconciliation.
 		_ = s.store.UpdateStatus(ctx, ref, "failed")
@@ -133,9 +135,11 @@ func (s *Service) Initiate(ctx context.Context, req ChargeRequest) (ChargeResult
 		}
 		// Not-configured is not a gateway health signal; all other failures are.
 		s.router.RecordResult(ctx, chosen, false)
+		observability.ObserveGatewayDuration(string(chosen), false, duration)
 		return ChargeFailed{Reason: err.Error()}, nil
 	}
 	s.router.RecordResult(ctx, chosen, true)
+	observability.ObserveGatewayDuration(string(chosen), true, duration)
 	observability.SetEventField(ctx, "charge_ref", ref)
 	return ChargePending{Ref: ref, Gateway: chosen, ExternalRef: resp.ExternalRef, AuthorizationURL: resp.AuthorizationURL}, nil
 }
@@ -152,7 +156,12 @@ func (s *Service) Status(ctx context.Context, ref string) (gateway.VerifyResult,
 	if !exists {
 		return gateway.VerifyResult{}, fmt.Errorf("charges: no adapter for gateway %s", gw)
 	}
+	start := time.Now()
 	result, err := adapter.Verify(ctx, ref)
+	duration := time.Since(start).Seconds()
+	success := err == nil
+	observability.ObserveGatewayDuration(string(gw), success, duration)
+	observability.ObserveGatewayResult(string(gw), success)
 	if err != nil {
 		return gateway.VerifyResult{}, fmt.Errorf("charges: verify: %w", err)
 	}
