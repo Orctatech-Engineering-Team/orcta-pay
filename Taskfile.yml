@@ -117,10 +117,52 @@ tasks:
   dev:reset:
     desc: Destroy local data volumes and re-migrate from scratch
     cmds:
+      - |
+        if [ "${ORCTA_ENV:-}" = "production" ] || [ "${ORCTA_ENV:-}" = "prod" ] || [ "${ORCTA_ENV:-}" = "staging" ]; then
+          echo "Refusing task dev:reset (down -v) with ORCTA_ENV=$ORCTA_ENV — use ALLOW_DATA_LOSS=1 to override" >&2
+          echo "See deploy/data/BACKUP.md#guardrail-down--v-protection" >&2
+          if [ "${ALLOW_DATA_LOSS:-0}" != "1" ]; then exit 2; fi
+        fi
       - docker compose down -v
       - docker compose up -d
       - sleep 3
       - task: migrate:up
+
+  data:up:
+    desc: Start the production data stack (Postgres + Valkey + backup sidecar)
+    cmds:
+      - docker compose -p orcta-pay-data -f deploy/data/docker-compose.yml --env-file deploy/data/.env up -d
+
+  data:down:
+    desc: Stop the production data stack (preserves volumes — safe for prod)
+    cmds:
+      - docker compose -p orcta-pay-data -f deploy/data/docker-compose.yml down
+
+  data:down:hard:
+    desc: Destroy production data volumes (requires ALLOW_DATA_LOSS=1)
+    cmds:
+      - |
+        if [ "${ALLOW_DATA_LOSS:-0}" != "1" ]; then
+          echo "Refusing data:down:hard without ALLOW_DATA_LOSS=1" >&2
+          echo "This deletes postgres_data, postgres_backups, postgres_wal_archive — see deploy/data/BACKUP.md" >&2
+          exit 2
+        fi
+        ./deploy/data/scripts/guard.sh --allow-data-loss down -v
+
+  data:backup:
+    desc: Run a one-off pg_dump via the backup sidecar
+    cmds:
+      - docker compose -p orcta-pay-data -f deploy/data/docker-compose.yml --env-file deploy/data/.env exec postgres-backup /usr/local/bin/backup.sh
+
+  data:backup:list:
+    desc: List local dumps and WAL archive
+    cmds:
+      - docker compose -p orcta-pay-data -f deploy/data/docker-compose.yml --env-file deploy/data/.env exec postgres-backup /usr/local/bin/restore.sh --list
+
+  data:guard:
+    desc: Run the down -v guardrail check (e.g. task data:guard -- down -v)
+    cmds:
+      - ./deploy/data/scripts/guard.sh {{.CLI_ARGS}}
 
   dev:logs:
     desc: Tail local dependency logs
@@ -226,6 +268,11 @@ tasks:
       - '! grep -qE "^\s*container_name:" deploy/app/docker-compose.yml'
       - '! grep -qE "^\s*ports:" deploy/app/docker-compose.yml'
       - grep -qE "^\s{2}web:" deploy/app/docker-compose.yml
+      - test -f deploy/data/BACKUP.md
+      - test -x deploy/data/scripts/guard.sh
+      - test -f deploy/data/backup/backup.sh
+      - test -f deploy/data/backup/restore.sh
+      - grep -q "BACKUP.md" README.md
 
   tools:
     desc: Install the developer tooling this project expects
