@@ -58,6 +58,11 @@ type Store interface {
 }
 
 // Service orchestrates ledger operations.
+//
+// Refund handling: ledger entries for refunds MUST only be written after the
+// gateway confirms success. A gateway returning ErrNotSupported (e.g. Moolre)
+// means no money moved — do not append a refund entry; instead surface 501
+// and require a manual/alternative reversal path.
 type Service struct {
 	store Store
 }

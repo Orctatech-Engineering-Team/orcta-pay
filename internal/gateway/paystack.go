@@ -233,12 +233,59 @@ func (a *PaystackAdapter) Verify(ctx context.Context, reference string) (VerifyR
 	return VerifyResult{Reference: reference, Status: status, Amount: amount, VerifiedAt: time.Now().UTC()}, nil
 }
 
-// Refund refunds a charge.
+// Refund refunds a charge via POST /refund.
+// Paystack expects amount in pesewas (minor units) and transaction reference.
 func (a *PaystackAdapter) Refund(ctx context.Context, reference string, amount money.Money) error {
+	ctx, span := observability.StartSpan(ctx, "gateway.paystack.Refund")
+	defer span.End()
+
 	if a.cfg.Disabled() {
 		return fmt.Errorf("paystack: %w", ErrNotConfigured)
 	}
-	a.logger.InfoContext(ctx, "paystack refund stub", "reference", reference)
+	payload := map[string]any{
+		"transaction": reference,
+		"amount":      amount.MinorUnits(),
+		"currency":    "GHS",
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("paystack: marshal: %w", err)
+	}
+	base := strings.TrimRight(a.cfg.BaseURL, "/")
+	url := base + "/refund"
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("paystack: request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+a.cfg.SecretKey)
+
+	resp, err := a.client.Do(httpReq)
+	if err != nil {
+		span.RecordError(err)
+		return fmt.Errorf("paystack: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode >= 500 {
+		span.RecordError(fmt.Errorf("paystack http %d", resp.StatusCode))
+		return fmt.Errorf("paystack: http %d: %w", resp.StatusCode, ErrGatewayUnavailable)
+	}
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("paystack: %s", extractPaystackReason(respBody, resp.StatusCode))
+	}
+	var pr struct {
+		Status  bool   `json:"status"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(respBody, &pr); err == nil && !pr.Status {
+		reason := pr.Message
+		if reason == "" {
+			reason = "paystack refund declined"
+		}
+		return fmt.Errorf("paystack: %s", reason)
+	}
 	return nil
 }
 
