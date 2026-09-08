@@ -35,6 +35,13 @@ var ErrNotConfigured = errors.New("gateway: not configured")
 // ErrGatewayUnavailable is returned when the gateway is circuit-open or failing.
 var ErrGatewayUnavailable = errors.New("gateway: unavailable")
 
+// ErrNotSupported is returned when a gateway has no refund capability.
+// Callers must map this to HTTP 501 and must not treat the refund as succeeded.
+// Ledger entries for refunds must only be written after gateway confirmation; a
+// not-supported result means no money moved and requires a manual or
+// alternative reversal path.
+var ErrNotSupported = errors.New("gateway: not supported")
+
 // InitiateRequest is the normalized initiation payload.
 type InitiateRequest struct {
 	Reference      string

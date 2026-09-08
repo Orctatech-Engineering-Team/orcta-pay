@@ -60,6 +60,7 @@ func NewRouter(app *platform.App) http.Handler {
 		r.Post("/charges", handleCreateCharge(app))
 		r.Get("/charges", handleListCharges(app))
 		r.Get("/charges/{ref}/status", handleChargeStatus(app))
+		r.Post("/charges/{ref}/refund", handleRefundCharge(app))
 		r.Post("/payouts", handleCreatePayout(app))
 		r.Get("/payouts", handleListPayouts(app))
 		r.Get("/ledger", handleListLedger(app))

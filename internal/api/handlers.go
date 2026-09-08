@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/charges"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/gateway"
 	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/money"
 	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/payouts"
 	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/platform"
@@ -146,6 +147,61 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+func handleRefundCharge(app *platform.App) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ref := chi.URLParam(r, "ref")
+		if ref == "" {
+			writeError(w, http.StatusBadRequest, "invalid_request", "ref is required")
+			return
+		}
+		var body struct {
+			AmountPesewas int64  `json:"amount_pesewas"`
+			Currency      string `json:"currency"`
+		}
+		if err := decodeJSON(w, r, &body); err != nil {
+			return
+		}
+		if body.AmountPesewas <= 0 {
+			writeError(w, http.StatusBadRequest, "invalid_request", "amount_pesewas must be positive")
+			return
+		}
+		_, gw, _, ok := gateway.ParseReference(ref)
+		if !ok {
+			writeError(w, http.StatusBadRequest, "invalid_request", "malformed reference")
+			return
+		}
+		adapter, exists := app.Router.Adapter(gw)
+		if !exists {
+			writeError(w, http.StatusNotFound, "not_found", "no adapter for gateway")
+			return
+		}
+		amount := money.New(body.AmountPesewas, money.Currency(body.Currency))
+		if body.Currency == "" {
+			amount = money.New(body.AmountPesewas, money.GHS)
+		}
+		// Ledger note: refund ledger entries must only be written after gateway
+		// confirms success. A not-supported result means no money moved.
+		err := adapter.Refund(r.Context(), ref, amount)
+		if err != nil {
+			if errors.Is(err, gateway.ErrNotSupported) {
+				writeError(w, http.StatusNotImplemented, "not_implemented", err.Error())
+				return
+			}
+			if errors.Is(err, gateway.ErrNotConfigured) {
+				writeError(w, http.StatusBadGateway, "unavailable", err.Error())
+				return
+			}
+			if errors.Is(err, gateway.ErrGatewayUnavailable) {
+				writeError(w, http.StatusBadGateway, "unavailable", err.Error())
+				return
+			}
+			writeError(w, http.StatusBadGateway, "unavailable", err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ref": ref, "status": "refunded"})
+	}
 }
 
 func writeError(w http.ResponseWriter, status int, code, msg string) {

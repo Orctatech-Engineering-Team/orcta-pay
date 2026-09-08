@@ -322,13 +322,17 @@ func (a *MoolreAdapter) Verify(ctx context.Context, reference string) (VerifyRes
 	return VerifyResult{Reference: reference, Status: status, VerifiedAt: time.Now().UTC()}, nil
 }
 
-// Refund refunds a prior charge (no native endpoint, log and succeed if configured).
+// Refund is not supported by Moolre 2.0 — no native refund endpoint exists.
+// Callers must not treat this as success; map ErrNotSupported to HTTP 501 and
+// require a manual or alternative reversal path. Ledger must not credit a
+// refund without gateway confirmation.
 func (a *MoolreAdapter) Refund(ctx context.Context, reference string, amount money.Money) error {
 	if a.cfg.Disabled() {
 		return fmt.Errorf("moolre: %w", ErrNotConfigured)
 	}
-	a.logger.InfoContext(ctx, "moolre refund not natively supported, treating as no-op", "reference", reference)
-	return nil
+	_ = amount
+	_ = reference
+	return fmt.Errorf("moolre: %w", ErrNotSupported)
 }
 
 // Payout disburses to a recipient via POST /open/transact/transfer.

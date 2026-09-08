@@ -240,12 +240,61 @@ func (a *HubtelAdapter) Verify(ctx context.Context, reference string) (VerifyRes
 	return VerifyResult{Reference: reference, Status: status, VerifiedAt: time.Now().UTC()}, nil
 }
 
-// Refund refunds a prior charge.
+// Refund refunds a prior charge via POST /refund.
+// Amount is decimal GHS (e.g. "18.00") matching Initiate/Payout formatting.
 func (a *HubtelAdapter) Refund(ctx context.Context, reference string, amount money.Money) error {
+	ctx, span := observability.StartSpan(ctx, "gateway.hubtel.Refund")
+	defer span.End()
+
 	if a.cfg.Disabled() {
 		return fmt.Errorf("hubtel: %w", ErrNotConfigured)
 	}
-	a.logger.InfoContext(ctx, "hubtel refund stub", "reference", reference)
+	amountStr := hubtelAmount(amount)
+	payload := map[string]string{
+		"TransactionId":   reference,
+		"ClientReference": reference,
+		"Amount":          amountStr,
+		"Description":     "Orcta refund " + reference,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("hubtel: marshal: %w", err)
+	}
+	base := strings.TrimRight(a.cfg.BaseURL, "/")
+	url := base + "/refund"
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("hubtel: request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "application/json")
+	httpReq.SetBasicAuth(a.cfg.ClientID, a.cfg.ClientSecret)
+
+	resp, err := a.client.Do(httpReq)
+	if err != nil {
+		span.RecordError(err)
+		return fmt.Errorf("hubtel: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode >= 500 {
+		span.RecordError(fmt.Errorf("hubtel http %d", resp.StatusCode))
+		return fmt.Errorf("hubtel: http %d: %w", resp.StatusCode, ErrGatewayUnavailable)
+	}
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("hubtel: %s", extractHubtelReason(respBody, resp.StatusCode))
+	}
+	var hr hubtelResponse
+	if err := json.Unmarshal(respBody, &hr); err == nil && hr.ResponseCode != "" && hr.ResponseCode != "00" && hr.ResponseCode != "0000" && hr.ResponseCode != "000" && hr.ResponseCode != "01" {
+		reason := hr.ResponseText
+		if reason == "" {
+			reason = hr.Message
+		}
+		if reason == "" {
+			reason = "hubtel refund declined: " + hr.ResponseCode
+		}
+		return fmt.Errorf("hubtel: %s", reason)
+	}
 	return nil
 }
 
