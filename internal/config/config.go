@@ -50,6 +50,15 @@ type AuthConfig struct {
 	VaultAddr string
 }
 
+// RateLimitConfig configures request throttling.
+type RateLimitConfig struct {
+	Enabled           bool
+	RPS               int // RATE_LIMIT_RPS alias for IP limit per minute
+	IPPerMinute       int
+	APIKeyPerMinute   int
+	WebhookPerMinute  int
+}
+
 // Config is built once in main and passed down.
 type Config struct {
 	Environment Environment
@@ -60,6 +69,7 @@ type Config struct {
 	Payments    PaymentsConfig
 	Worker      WorkerConfig
 	Auth        AuthConfig
+	RateLimit   RateLimitConfig
 }
 
 // HTTPConfig configures the API server.
@@ -197,7 +207,10 @@ func Load() (Config, error) {
 	if apiKey == "" {
 		apiKey = os.Getenv("AUTH_API_KEY")
 	}
+	rateLimit, err := rateLimitConfig()
+	errs = append(errs, err)
 	cfg := Config{
+		RateLimit: rateLimit,
 		Environment: env,
 		HTTP: HTTPConfig{
 			Port:            port,
@@ -386,4 +399,59 @@ func moolreConfig() MoolreConfig {
 		AccountNumber: acct,
 		BaseURL:       stringVar("MOOLRE_BASE_URL", "https://api.moolre.com"),
 	}
+}
+
+func rateLimitConfig() (RateLimitConfig, error) {
+	enabled, err := boolVar("RATE_LIMIT_ENABLED", true)
+	if err != nil {
+		return RateLimitConfig{}, fmt.Errorf("config: RATE_LIMIT_ENABLED: %w", err)
+	}
+	rps, err := intVar("RATE_LIMIT_RPS", 60)
+	if err != nil {
+		return RateLimitConfig{}, fmt.Errorf("config: RATE_LIMIT_RPS: %w", err)
+	}
+	ipPerMin, err := intVar("RATE_LIMIT_IP_PER_MINUTE", rps)
+	if err != nil {
+		return RateLimitConfig{}, fmt.Errorf("config: RATE_LIMIT_IP_PER_MINUTE: %w", err)
+	}
+	// Explicit per-IP override if RATE_LIMIT_RPS was customized.
+	if v := os.Getenv("RATE_LIMIT_RPS"); v != "" {
+		ipPerMin = rps
+	}
+	apiKeyPerMin, err := intVar("RATE_LIMIT_API_KEY_PER_MINUTE", 300)
+	if err != nil {
+		return RateLimitConfig{}, fmt.Errorf("config: RATE_LIMIT_API_KEY_PER_MINUTE: %w", err)
+	}
+	webhookPerMin, err := intVar("RATE_LIMIT_WEBHOOK_PER_MINUTE", 600)
+	if err != nil {
+		return RateLimitConfig{}, fmt.Errorf("config: RATE_LIMIT_WEBHOOK_PER_MINUTE: %w", err)
+	}
+	if ipPerMin < 1 {
+		ipPerMin = 60
+	}
+	if apiKeyPerMin < 1 {
+		apiKeyPerMin = 300
+	}
+	if webhookPerMin < 1 {
+		webhookPerMin = 600
+	}
+	return RateLimitConfig{
+		Enabled:          enabled,
+		RPS:              rps,
+		IPPerMinute:      ipPerMin,
+		APIKeyPerMinute:  apiKeyPerMin,
+		WebhookPerMinute: webhookPerMin,
+	}, nil
+}
+
+func boolVar(key string, fallback bool) (bool, error) {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback, nil
+	}
+	v, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false, err
+	}
+	return v, nil
 }

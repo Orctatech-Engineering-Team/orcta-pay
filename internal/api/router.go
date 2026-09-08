@@ -26,6 +26,8 @@ func NewRouter(app *platform.App) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP) //nolint:staticcheck // RealIP is used intentionally per original scaffold
+	ipLimiter, keyLimiter := buildRateLimiters(app)
+	r.Use(rateLimitIPMiddleware(ipLimiter))
 	r.Use(middleware.Recoverer)
 	r.Use(prometheusMiddleware)
 	r.Use(middleware.Heartbeat("/healthz"))
@@ -60,6 +62,7 @@ func NewRouter(app *platform.App) http.Handler {
 
 	r.Route("/v1", func(r chi.Router) {
 		r.Use(bearerAuth(app))
+		r.Use(rateLimitAPIKeyMiddleware(keyLimiter))
 		r.Post("/charges", handleCreateCharge(app))
 		r.Get("/charges", handleListCharges(app))
 		r.Get("/charges/{ref}/status", handleChargeStatus(app))
