@@ -106,8 +106,9 @@ type VendorLedgerEntry struct {
 }
 
 type WebhookInbox struct {
-	AggregatorEventID string    `db:"aggregator_event_id" json:"aggregator_event_id"`
-	Gateway           string    `db:"gateway" json:"gateway"`
-	Payload           []byte    `db:"payload" json:"payload"`
-	ReceivedAt        time.Time `db:"received_at" json:"received_at"`
+	AggregatorEventID string     `db:"aggregator_event_id" json:"aggregator_event_id"`
+	Gateway           string     `db:"gateway" json:"gateway"`
+	Payload           []byte     `db:"payload" json:"payload"`
+	ReceivedAt        time.Time  `db:"received_at" json:"received_at"`
+	ProcessedAt       *time.Time `db:"processed_at" json:"processed_at"`
 }
