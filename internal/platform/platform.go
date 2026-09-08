@@ -4,7 +4,7 @@ package platform
 import (
 	"context"
 	"fmt"
-	"log/slog"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/valkey-io/valkey-go"
@@ -43,11 +43,58 @@ func Build(ctx context.Context, cfg config.Config) (*App, error) {
 	}
 	pool, err := newPool(ctx, cfg.Database)
 	if err != nil {
-		return nil, fmt.Errorf("platform: postgres: %w", err)
+		if cfg.Environment == config.EnvProduction {
+			return nil, fmt.Errorf("platform: postgres: %w", err)
+		}
+		observ.Logger.WarnContext(ctx, "postgres pool creation failed, using in-memory fallback", "error", err)
+		pool = nil
+	} else {
+		pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		pingErr := pool.Ping(pingCtx)
+		cancel()
+		if pingErr != nil {
+			pool.Close()
+			if cfg.Environment == config.EnvProduction {
+				return nil, fmt.Errorf("platform: postgres ping: %w", pingErr)
+			}
+			observ.Logger.WarnContext(ctx, "postgres ping failed, using in-memory store — data will NOT persist", "error", pingErr)
+			pool = nil
+		}
+	}
+	if pool == nil && cfg.Environment == config.EnvProduction {
+		return nil, fmt.Errorf("platform: postgres: unavailable in production")
 	}
 	valkeyClient, err := newValkey(cfg.Valkey)
 	if err != nil {
+		if cfg.Environment == config.EnvProduction {
+			if pool != nil {
+				pool.Close()
+			}
+			return nil, fmt.Errorf("platform: valkey: %w", err)
+		}
 		observ.Logger.WarnContext(ctx, "valkey not connected, using in-memory fallback", "error", err)
+		valkeyClient = nil
+	} else {
+		pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		pingErr := valkeyClient.Do(pingCtx, valkeyClient.B().Ping().Build()).Error()
+		cancel()
+		if pingErr != nil {
+			valkeyClient.Close()
+			if cfg.Environment == config.EnvProduction {
+				if pool != nil {
+					pool.Close()
+				}
+				return nil, fmt.Errorf("platform: valkey ping: %w", pingErr)
+			}
+			observ.Logger.WarnContext(ctx, "valkey ping failed, using in-memory fallback", "error", pingErr)
+			valkeyClient = nil
+		}
+	}
+	if valkeyClient == nil && cfg.Environment == config.EnvProduction {
+		if pool != nil {
+			pool.Close()
+		}
+		return nil, fmt.Errorf("platform: valkey: unavailable in production")
 	}
 	health := valkeystore.NewHealthStore(valkeyClient)
 	locker := valkeystore.NewLocker(valkeyClient)
@@ -126,13 +173,9 @@ func newPool(ctx context.Context, cfg config.DatabaseConfig) (*pgxpool.Pool, err
 		return nil, err
 	}
 	poolCfg.MaxConns = cfg.MaxConns
-	// When running without a database (e.g. vet), return nil pool gracefully.
-	// Callers that need DB will fail at query time.
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
-		// Log and return nil pool for non-DB modes.
-		slog.Warn("postgres pool not created", "error", err)
-		return nil, nil
+		return nil, err
 	}
 	return pool, nil
 }
