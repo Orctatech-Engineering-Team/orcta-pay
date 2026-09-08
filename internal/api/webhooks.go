@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/config"
 	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/gateway"
 	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/observability"
 	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/platform"
@@ -45,7 +46,16 @@ func handleWebhook(app *platform.App, gatewayName string) http.HandlerFunc {
 		}
 		defer func() { _ = r.Body.Close() }()
 
-		if !verifyWebhook(app, gatewayName, r.Header, body) {
+		secret := webhookSecret(app, gatewayName)
+		if gatewayName == "moolre" && secret == "" {
+			if app.Config.Environment == config.EnvProduction {
+				writeError(w, http.StatusUnauthorized, "unauthorized", "webhook secret not configured")
+				return
+			}
+			observability.LoggerFromContext(r.Context()).WarnContext(r.Context(),
+				"moolre webhook accepted without signature: MOOLRE_WEBHOOK_SECRET not set",
+				"gateway", gatewayName)
+		} else if !verifyWebhook(app, gatewayName, r.Header, body) {
 			writeError(w, http.StatusUnauthorized, "unauthorized", "bad signature")
 			return
 		}
@@ -77,12 +87,28 @@ func handleWebhook(app *platform.App, gatewayName string) http.HandlerFunc {
 // verifyWebhook checks the payload signature. Standard Webhooks headers
 // (webhook-id/timestamp/signature, HMAC-SHA256 base64) take precedence per
 // spec; legacy per-gateway HMAC headers (X-Hubtel-Signature, X-Paystack-
-// Signature) are accepted for backward compatibility. Moolre publishes no
-// HMAC — webhook_inbox dedup is the source of truth.
+// Signature) are accepted for backward compatibility. For Moolre, when
+// MOOLRE_WEBHOOK_SECRET is set Standard Webhooks verification is required;
+// when empty, unauthenticated requests are rejected in production and
+// allowed with a WARN log in non-production (handled in handleWebhook).
 func verifyWebhook(app *platform.App, gatewayName string, h http.Header, body []byte) bool {
 	secret := webhookSecret(app, gatewayName)
 	if secret == "" {
-		return gatewayName == "moolre" // unconfigured secret: only moolre proceeds unverified
+		return false
+	}
+	if gatewayName == "moolre" {
+		id := h.Get("Webhook-Id")
+		if id == "" {
+			return false
+		}
+		return webhooks.VerifyStandardWebhook(
+			secret,
+			id,
+			h.Get("Webhook-Timestamp"),
+			h.Get("Webhook-Signature"),
+			body,
+			time.Now(),
+		)
 	}
 	if id := h.Get("Webhook-Id"); id != "" {
 		return webhooks.VerifyStandardWebhook(
