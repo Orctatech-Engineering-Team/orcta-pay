@@ -36,9 +36,13 @@ services:
     command:
       - valkey-server
       - --appendonly
-      - "no"
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --auto-aof-rewrite-percentage
+      - "100"
       - --save
-      - "3600 1"
+      - ""
       - --maxmemory-policy
       - noeviction
     healthcheck:
