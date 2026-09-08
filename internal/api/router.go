@@ -7,14 +7,17 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	payapi "github.com/Orctatech-Engineering-Team/orcta-pay/api"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/observability"
 	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/platform"
 )
 
@@ -24,6 +27,7 @@ func NewRouter(app *platform.App) http.Handler {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP) //nolint:staticcheck // RealIP is used intentionally per original scaffold
 	r.Use(middleware.Recoverer)
+	r.Use(prometheusMiddleware)
 	r.Use(middleware.Heartbeat("/healthz"))
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   allowedOrigins(),
@@ -39,9 +43,8 @@ func NewRouter(app *platform.App) http.Handler {
 		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	})
 	r.Get("/readyz", readinessHandler(app))
-	r.Get("/metrics", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-		_, _ = w.Write([]byte("# metrics\n"))
+	r.Get("/metrics", func(w http.ResponseWriter, r *http.Request) {
+		promhttp.Handler().ServeHTTP(w, r)
 	})
 	r.Get("/openapi.yaml", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/yaml")
@@ -143,6 +146,22 @@ func allowedOrigins() []string {
 		}
 	}
 	return []string{"http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000", "http://127.0.0.1:3000"}
+}
+
+func prometheusMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+		next.ServeHTTP(ww, r)
+		duration := time.Since(start).Seconds()
+		route := chi.RouteContext(r.Context()).RoutePattern()
+		if route == "" {
+			route = r.URL.Path
+		}
+		status := strconv.Itoa(ww.Status())
+		observability.HTTPRequestsTotal.WithLabelValues(r.Method, route, status).Inc()
+		observability.HTTPRequestDuration.WithLabelValues(r.Method, route, status).Observe(duration)
+	})
 }
 
 func readinessHandler(app *platform.App) http.HandlerFunc {

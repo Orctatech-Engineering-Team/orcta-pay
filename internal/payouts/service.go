@@ -208,8 +208,12 @@ func (s *Service) Dispatch(ctx context.Context, batch PayoutBatch) error {
 			if !ok {
 				continue
 			}
+			start := time.Now()
 			err = adapter.Payout(ctx, e.Recipient, e.Amount, e.Reference)
+			duration := time.Since(start).Seconds()
 			if err == nil {
+				observability.ObserveGatewayResult(string(g), true)
+				observability.ObserveGatewayDuration(string(g), true, duration)
 				if s.ledger != nil {
 					now := time.Now().UTC()
 					_ = s.ledger.AppendEntry(ctx, ledger.LedgerEntry{
@@ -232,6 +236,8 @@ func (s *Service) Dispatch(ctx context.Context, batch PayoutBatch) error {
 				err = nil
 				break
 			}
+			observability.ObserveGatewayResult(string(g), false)
+			observability.ObserveGatewayDuration(string(g), false, duration)
 		}
 		if err != nil && s.ledger != nil {
 			// Release reservation on permanent failure.
