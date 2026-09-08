@@ -40,7 +40,7 @@ func TestPostgresStoreCharges(t *testing.T) {
 	ref := "optd-test-hubtel-" + uuid.New().String()[:8]
 	req := charges.ChargeRequest{Product: "test", Wallet: "0241234567", IdempotencyKey: "key-" + ref}
 
-	if err := s.CreateIntent(ctx, ref, req, gateway.GatewayPaystack, money.New(1800, money.GHS)); err != nil {
+	if err := s.CreateIntent(ctx, ref, req, gateway.GatewayPaystack, money.New(1800, money.GHS), "https://checkout.paystack.com/test"); err != nil {
 		t.Fatalf("CreateIntent: %v", err)
 	}
 	got, err := s.FindByRef(ctx, ref)
@@ -49,6 +49,9 @@ func TestPostgresStoreCharges(t *testing.T) {
 	}
 	if got.Ref != ref || got.Gateway != gateway.GatewayPaystack {
 		t.Fatalf("got = %+v", got)
+	}
+	if got.AuthorizationURL != "https://checkout.paystack.com/test" {
+		t.Fatalf("AuthorizationURL = %q, want https://checkout.paystack.com/test", got.AuthorizationURL)
 	}
 
 	foundRef, ok, err := s.FindByIdempotencyKey(ctx, "test", "key-"+ref)
@@ -108,7 +111,7 @@ func TestPostgresStoreWebhookProcessing(t *testing.T) {
 	ctx := context.Background()
 	ref := "optd-test-hubtel-" + uuid.New().String()[:8]
 	req := charges.ChargeRequest{Product: "test", Wallet: "0241234567", IdempotencyKey: "wh-" + ref}
-	if err := s.CreateIntent(ctx, ref, req, gateway.GatewayHubtel, money.New(1800, money.GHS)); err != nil {
+	if err := s.CreateIntent(ctx, ref, req, gateway.GatewayHubtel, money.New(1800, money.GHS), ""); err != nil {
 		t.Fatalf("CreateIntent: %v", err)
 	}
 

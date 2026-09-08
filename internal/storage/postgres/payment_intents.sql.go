@@ -12,19 +12,20 @@ import (
 )
 
 const createPaymentIntent = `-- name: CreatePaymentIntent :exec
-INSERT INTO payment_intents (ref, product, gateway, amount_pesewas, currency, wallet, idempotency_key, status, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
+INSERT INTO payment_intents (ref, product, gateway, amount_pesewas, currency, wallet, idempotency_key, status, authorization_url, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
 `
 
 type CreatePaymentIntentParams struct {
-	Ref            string      `db:"ref" json:"ref"`
-	Product        string      `db:"product" json:"product"`
-	Gateway        string      `db:"gateway" json:"gateway"`
-	AmountPesewas  int64       `db:"amount_pesewas" json:"amount_pesewas"`
-	Currency       string      `db:"currency" json:"currency"`
-	Wallet         pgtype.Text `db:"wallet" json:"wallet"`
-	IdempotencyKey pgtype.Text `db:"idempotency_key" json:"idempotency_key"`
-	Status         string      `db:"status" json:"status"`
+	Ref              string      `db:"ref" json:"ref"`
+	Product          string      `db:"product" json:"product"`
+	Gateway          string      `db:"gateway" json:"gateway"`
+	AmountPesewas    int64       `db:"amount_pesewas" json:"amount_pesewas"`
+	Currency         string      `db:"currency" json:"currency"`
+	Wallet           pgtype.Text `db:"wallet" json:"wallet"`
+	IdempotencyKey   pgtype.Text `db:"idempotency_key" json:"idempotency_key"`
+	Status           string      `db:"status" json:"status"`
+	AuthorizationURL pgtype.Text `db:"authorization_url" json:"authorization_url"`
 }
 
 func (q *Queries) CreatePaymentIntent(ctx context.Context, arg CreatePaymentIntentParams) error {
@@ -37,6 +38,7 @@ func (q *Queries) CreatePaymentIntent(ctx context.Context, arg CreatePaymentInte
 		arg.Wallet,
 		arg.IdempotencyKey,
 		arg.Status,
+		arg.AuthorizationURL,
 	)
 	return err
 }
@@ -58,7 +60,7 @@ func (q *Queries) GetPaymentIntentByIdempotencyKey(ctx context.Context, arg GetP
 }
 
 const getPaymentIntentByRef = `-- name: GetPaymentIntentByRef :one
-SELECT ref, product, gateway, amount_pesewas, currency, wallet, idempotency_key, status, created_at
+SELECT ref, product, gateway, amount_pesewas, currency, wallet, idempotency_key, status, authorization_url, created_at
 FROM payment_intents WHERE ref = $1
 `
 
@@ -74,6 +76,7 @@ func (q *Queries) GetPaymentIntentByRef(ctx context.Context, ref string) (Paymen
 		&i.Wallet,
 		&i.IdempotencyKey,
 		&i.Status,
+		&i.AuthorizationURL,
 		&i.CreatedAt,
 	)
 	return i, err

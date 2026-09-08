@@ -6,8 +6,10 @@ import (
 	"crypto/sha512"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/config"
@@ -30,10 +32,36 @@ func handlePaystackCallback(app *platform.App) http.HandlerFunc {
 			http.Redirect(w, r, "https://pay.orctatech.com/", http.StatusFound)
 			return
 		}
-		// Webhook POST (charge.success) is what flips ledger; this GET
-		// redirect just sends the browser to the dashboard. Dashboard's
-		// live Verify (GET /v1/charges/{ref}/status) will show succeeded.
-		http.Redirect(w, r, "https://pay.orctatech.com/", http.StatusFound)
+		// Verify trxref via Paystack before redirecting so the dashboard can
+		// show authoritative status without an extra round-trip. Webhook POST
+		// (charge.success) is still what flips ledger via Process.
+		if app.Router != nil {
+			// Prefer Paystack adapter; fall back to gateway parsed from ref for robustness.
+			var adapter gateway.AggregatorClient
+			var ok bool
+			if adapter, ok = app.Router.Adapter(gateway.GatewayPaystack); !ok {
+				if _, gw, _, parseOK := gateway.ParseReference(ref); parseOK {
+					adapter, ok = app.Router.Adapter(gw)
+				}
+			}
+			if ok && adapter != nil {
+				if result, err := adapter.Verify(r.Context(), ref); err == nil {
+					status := result.Status
+					if status == "" {
+						status = "pending"
+					}
+					target := fmt.Sprintf("https://pay.orctatech.com/?trxref=%s&status=%s", url.QueryEscape(ref), url.QueryEscape(status))
+					http.Redirect(w, r, target, http.StatusFound)
+					return
+				} else {
+					observability.LoggerFromContext(r.Context()).WarnContext(r.Context(),
+						"paystack callback verify failed", "ref", ref, "error", err)
+				}
+			}
+		}
+		// Fallback: redirect with ref so dashboard can verify via GET /v1/charges/{ref}/status.
+		target := fmt.Sprintf("https://pay.orctatech.com/?trxref=%s", url.QueryEscape(ref))
+		http.Redirect(w, r, target, http.StatusFound)
 	}
 }
 

@@ -132,16 +132,17 @@ func nullString(s string) pgtype.Text {
 // CreateIntent persists a charge intent. The UNIQUE (product, idempotency_key)
 // constraint makes concurrent duplicate intents fail loudly — callers check
 // idempotency before create, so this only fires on a race.
-func (s *PostgresStore) CreateIntent(ctx context.Context, ref string, req charges.ChargeRequest, gw gateway.Gateway, amount money.Money) error {
+func (s *PostgresStore) CreateIntent(ctx context.Context, ref string, req charges.ChargeRequest, gw gateway.Gateway, amount money.Money, authorizationURL string) error {
 	err := s.q.CreatePaymentIntent(ctx, CreatePaymentIntentParams{
-		Ref:            ref,
-		Product:        req.Product,
-		Gateway:        string(gw),
-		AmountPesewas:  amount.MinorUnits(),
-		Currency:       string(amount.Currency()),
-		Wallet:         nullString(req.Wallet),
-		IdempotencyKey: nullString(req.IdempotencyKey),
-		Status:         "pending",
+		Ref:              ref,
+		Product:          req.Product,
+		Gateway:          string(gw),
+		AmountPesewas:    amount.MinorUnits(),
+		Currency:         string(amount.Currency()),
+		Wallet:           nullString(req.Wallet),
+		IdempotencyKey:   nullString(req.IdempotencyKey),
+		Status:           "pending",
+		AuthorizationURL: nullString(authorizationURL),
 	})
 	if err != nil {
 		return fmt.Errorf("postgres: create intent: %w", err)
@@ -158,7 +159,11 @@ func (s *PostgresStore) FindByRef(ctx context.Context, ref string) (charges.Char
 		}
 		return charges.ChargePending{}, fmt.Errorf("postgres: get intent: %w", err)
 	}
-	return charges.ChargePending{Ref: row.Ref, Gateway: gateway.Gateway(row.Gateway), ExternalRef: row.Ref}, nil
+	authURL := ""
+	if row.AuthorizationURL.Valid {
+		authURL = row.AuthorizationURL.String
+	}
+	return charges.ChargePending{Ref: row.Ref, Gateway: gateway.Gateway(row.Gateway), ExternalRef: row.Ref, AuthorizationURL: authURL}, nil
 }
 
 // FindByIdempotencyKey looks up a prior intent by product + key.
