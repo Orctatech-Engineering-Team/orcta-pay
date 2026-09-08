@@ -91,6 +91,8 @@ deploy/
   app/     docker-compose.yml                 → /srv/apps/orcta-pay/
 ```
 
+Backups and point-in-time recovery are documented in [`deploy/data/BACKUP.md`](./deploy/data/BACKUP.md): nightly `pg_dump --format=custom` sidecar, WAL archiving (`wal_level=replica`, `archive_timeout=60`) for PITR, `BACKUP_S3_BUCKET` off-host sync, and the `down -v` guardrail (`deploy/data/scripts/guard.sh`, `task data:down`). Run `task data:down` (never `down -v`) on prod — it requires `ALLOW_DATA_LOSS=1`.
+
 ## Observability
 
 Domain packages never import OpenTelemetry or Prometheus directly — they use `internal/observability`:

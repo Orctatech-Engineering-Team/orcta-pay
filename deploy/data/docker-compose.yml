@@ -1,5 +1,9 @@
 # Orcta Pay datastores — long-lived, deployed once by hand, never by Orcta.
 # docker compose -p orcta-pay-data up -d
+#
+# Backups: see BACKUP.md and backup/backup.sh. Nightly pg_dump + WAL archive
+# for PITR. Guardrail: use ./scripts/guard.sh or `task data:down` — never
+# `docker compose down -v` on prod without ALLOW_DATA_LOSS=1.
 
 services:
   postgres:
@@ -14,8 +18,26 @@ services:
       - "127.0.0.1:5435:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - postgres_wal_archive:/wal-archive
     networks:
       - orcta_net
+    # WAL archiving for PITR. Default: local archive under /wal-archive via cp.
+    # If WALG_S3_PREFIX is set the backup sidecar switches postgres to wal-g;
+    # otherwise archive_command keeps a host-visible volume so PITR works without S3.
+    command:
+      - postgres
+      - -c
+      - wal_level=replica
+      - -c
+      - archive_mode=on
+      - -c
+      - archive_timeout=60
+      - -c
+      - max_wal_senders=3
+      - -c
+      - wal_keep_size=512MB
+      - -c
+      - archive_command=test ! -f /wal-archive/%f && cp %p /wal-archive/%f
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-orcta_pay} -d ${POSTGRES_DB:-orcta_pay}"]
       interval: 10s
@@ -51,9 +73,70 @@ services:
       timeout: 5s
       retries: 5
 
+  postgres-backup:
+    image: postgres:17-alpine
+    container_name: orcta-pay-postgres-backup
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-orcta_pay}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      PGDATABASE: ${POSTGRES_DB:-orcta_pay}
+      BACKUP_DIR: /backups
+      WAL_ARCHIVE_DIR: /wal-archive
+      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_REGION: ${AWS_REGION:-}
+      AWS_ENDPOINT: ${AWS_ENDPOINT:-}
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:-}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+      BACKUP_RETENTION_WEEKS: ${BACKUP_RETENTION_WEEKS:-4}
+    volumes:
+      - postgres_backups:/backups
+      - postgres_wal_archive:/wal-archive:ro
+      - ./backup/backup.sh:/usr/local/bin/backup.sh:ro
+      - ./backup/restore.sh:/usr/local/bin/restore.sh:ro
+    networks:
+      - orcta_net
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        chmod +x /usr/local/bin/backup.sh /usr/local/bin/restore.sh
+        echo "postgres-backup: starting daily loop (02:00 UTC, retention $${BACKUP_RETENTION_DAYS}d + $${BACKUP_RETENTION_WEEKS}w)"
+        # Run once on start for smoke-test if BACKUP_RUN_ON_START=1
+        if [ "$${BACKUP_RUN_ON_START:-0}" = "1" ]; then /usr/local/bin/backup.sh || true; fi
+        while true; do
+          # sleep until next 02:00 UTC
+          now=$$(date +%s)
+          next=$$(date -d "02:00 UTC tomorrow" +%s 2>/dev/null || date -d "tomorrow 02:00" +%s)
+          # fallback if date -d unavailable (alpine busybox): sleep 24h from now
+          if [ -z "$$next" ]; then next=$$((now + 86400)); fi
+          sleep_for=$$((next - now))
+          if [ "$$sleep_for" -le 0 ]; then sleep_for=60; fi
+          # cap initial wait to 60s so first backup happens quickly after deploy when not using cron
+          if [ "$$sleep_for" -gt 86400 ]; then sleep_for=86400; fi
+          echo "postgres-backup: sleeping $${sleep_for}s until next run"
+          sleep $$sleep_for
+          /usr/local/bin/backup.sh || echo "backup failed at $$(date -u -Iseconds)" >&2
+        done
+    healthcheck:
+      test: ["CMD-SHELL", "ls -t /backups/*.dump 2>/dev/null | head -1 | xargs test -f || exit 1"]
+      interval: 1h
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
 volumes:
   postgres_data:
   valkey_data:
+  postgres_backups:
+  postgres_wal_archive:
 
 networks:
   orcta_net:

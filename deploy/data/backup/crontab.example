@@ -1,0 +1,26 @@
+# deploy/data/backup/crontab.example — host cron alternative to postgres-backup sidecar
+# Use this if you prefer host-level backups instead of the compose sidecar.
+# Install with: crontab -e  (or /etc/cron.d/orcta-pay-backup)
+#
+# Required env: PGHOST, PGUSER, PGPASSWORD, PGDATABASE, BACKUP_DIR.
+# For off-host, set BACKUP_S3_BUCKET / AWS_* or WALG_S3_PREFIX.
+# For encryption, set BACKUP_ENCRYPTION_KEY (passphrase).
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+BACKUP_DIR=/srv/apps/orcta-pay-data/backups
+PGHOST=127.0.0.1
+PGPORT=5435
+PGUSER=orcta_pay
+PGDATABASE=orcta_pay
+# PGPASSWORD is read from /srv/apps/orcta-pay-data/.env — source it below
+
+# Daily 02:00 UTC pg_dump (custom format, retention 7d + 4w, optional S3 + encryption).
+# Source .env so PGPASSWORD / AWS_* / BACKUP_ENCRYPTION_KEY are set.
+0 2 * * * set -a; source /srv/apps/orcta-pay-data/.env; set +a; /srv/apps/orcta-pay-data/backup/backup.sh >> /var/log/orcta-pay-backup.log 2>&1
+
+# Weekly verify (Sundays 03:00): pg_restore --list the latest dump
+0 3 * * 0 set -a; source /srv/apps/orcta-pay-data/.env; set +a; /srv/apps/orcta-pay-data/backup/restore.sh --verify $(ls -t /srv/apps/orcta-pay-data/backups/orcta_pay-*.dump 2>/dev/null | head -1) >> /var/log/orcta-pay-backup.log 2>&1 || echo "verify failed $(date)" | mail -s "orcta-pay backup verify failed" ops@orctatech.com
+
+# Optional WAL-G base backup (if WALG_S3_PREFIX set): daily base backup + continuous wal-push via archive_command.
+# 30 2 * * * set -a; source /srv/apps/orcta-pay-data/.env; set +a; env PGHOST=127.0.0.1 PGPORT=5435 wal-g backup-push /var/lib/postgresql/data >> /var/log/orcta-pay-backup.log 2>&1
