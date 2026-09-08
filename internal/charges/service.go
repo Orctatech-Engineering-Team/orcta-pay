@@ -81,6 +81,8 @@ func NewService(store IntentStore, router *gateway.ChargerRouter, opts ...Option
 type Option func(*Service)
 
 // Initiate creates optd-{product}-{gateway}-{ulid}, persists, and calls the gateway.
+// It preserves the idempotency guard before routing and uses InitiateWithFallback
+// for ranked fallback, recording health and persisting the actual chosen gateway.
 func (s *Service) Initiate(ctx context.Context, req ChargeRequest) (ChargeResult, error) {
 	ctx, span := observability.StartSpan(ctx, "charges.Initiate")
 	defer span.End()
@@ -92,52 +94,48 @@ func (s *Service) Initiate(ctx context.Context, req ChargeRequest) (ChargeResult
 	if wallet == "" {
 		wallet = req.Phone
 	}
-	// Idempotency: reuse existing ref if key seen.
+	// Idempotency: reuse existing ref if key seen. Must stay before any routing or side effects.
 	if req.IdempotencyKey != "" {
 		if ref, found, err := s.store.FindByIdempotencyKey(ctx, req.Product, req.IdempotencyKey); err == nil && found {
 			observability.SetEventField(ctx, "charge_ref", ref)
 			return ChargePending{Ref: ref}, nil
 		}
 	}
-	// Choose gateway order and generate reference with chosen gateway.
-	var chosen gateway.Gateway
-	var ref string
-	for _, g := range s.router.Route(ctx) {
-		ref = gateway.BuildReference(req.Product, g, gateway.NewULID())
-		chosen = g
-		break
-	}
-	if ref == "" {
+	ordered := s.router.Route(ctx)
+	if len(ordered) == 0 {
 		return nil, fmt.Errorf("charges: no gateway available: %w", gateway.ErrGatewayUnavailable)
 	}
-	if err := s.store.CreateIntent(ctx, ref, req, chosen, req.Amount); err != nil {
-		return nil, fmt.Errorf("charges: create intent: %w", err)
-	}
-	adapter, ok := s.router.Adapter(chosen)
-	if !ok {
-		return ChargePending{Ref: ref, Gateway: chosen}, nil
-	}
-	resp, err := adapter.Initiate(ctx, gateway.InitiateRequest{
-		Reference:      ref,
+	ulid := gateway.NewULID()
+	baseRef := gateway.BuildReference(req.Product, ordered[0], ulid)
+	baseReq := gateway.InitiateRequest{
+		Reference:      baseRef,
 		Amount:         req.Amount,
 		Wallet:         wallet,
 		Product:        req.Product,
 		IdempotencyKey: req.IdempotencyKey,
-	})
+	}
+	resp, chosen, err := s.router.InitiateWithFallback(ctx, baseReq)
 	if err != nil {
-		// Persist failure but keep intent for reconciliation.
-		_ = s.store.UpdateStatus(ctx, ref, "failed")
 		if errors.Is(err, gateway.ErrNotConfigured) {
+			chosen = ordered[0]
+			// Persist intent so it remains findable for reconciliation.
+			_ = s.store.CreateIntent(ctx, baseRef, req, chosen, req.Amount)
 			observability.LoggerFromContext(ctx).InfoContext(ctx, "gateway not configured", "gateway", chosen)
-			return ChargePending{Ref: ref, Gateway: chosen, ExternalRef: ref}, nil
+			observability.SetEventField(ctx, "charge_ref", baseRef)
+			return ChargePending{Ref: baseRef, Gateway: chosen, ExternalRef: baseRef}, nil
 		}
-		// Not-configured is not a gateway health signal; all other failures are.
-		s.router.RecordResult(ctx, chosen, false)
 		return ChargeFailed{Reason: err.Error()}, nil
 	}
-	s.router.RecordResult(ctx, chosen, true)
-	observability.SetEventField(ctx, "charge_ref", ref)
-	return ChargePending{Ref: ref, Gateway: chosen, ExternalRef: resp.ExternalRef, AuthorizationURL: resp.AuthorizationURL}, nil
+	// Build the actual reference for the chosen gateway reusing the same ULID.
+	actualRef := baseRef
+	if prod, g, parsedULID, ok := gateway.ParseReference(baseRef); ok && g != chosen {
+		actualRef = gateway.BuildReference(prod, chosen, parsedULID)
+	}
+	if err := s.store.CreateIntent(ctx, actualRef, req, chosen, req.Amount); err != nil {
+		return nil, fmt.Errorf("charges: create intent: %w", err)
+	}
+	observability.SetEventField(ctx, "charge_ref", actualRef)
+	return ChargePending{Ref: actualRef, Gateway: chosen, ExternalRef: resp.ExternalRef, AuthorizationURL: resp.AuthorizationURL}, nil
 }
 
 // Status calls the gateway Verify for authoritative truth.
