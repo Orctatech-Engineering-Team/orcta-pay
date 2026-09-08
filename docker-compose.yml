@@ -17,6 +17,9 @@ services:
       start_period: 10s
 
   valkey:
+    # Local dev intentionally non-durable (no AOF) for speed; production at
+    # deploy/data/docker-compose.yml uses AOF everysec (--appendonly yes,
+    # --appendfsync everysec) so Valkey SETNX idempotency locks survive restarts.
     image: valkey/valkey:8-alpine
     ports:
       - "${VALKEY_PORT:-6379}:6379"
