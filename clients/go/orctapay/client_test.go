@@ -9,8 +9,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/money"
 )
 
 func TestCreateChargeSuccess(t *testing.T) {
@@ -29,9 +27,10 @@ func TestCreateChargeSuccess(t *testing.T) {
 	c := NewClient("", "test-key", WithBaseURL(srv.URL))
 
 	res, err := c.CreateCharge(context.Background(), CreateChargeRequest{
-		Product: "orctago",
-		Amount:  money.New(1800, money.GHS),
-		Wallet:  "0241234567",
+		Product:       "orctago",
+		AmountPesewas: 1800,
+		Currency:      "GHS",
+		Wallet:        "0241234567",
 	})
 	if err != nil {
 		t.Fatalf("CreateCharge: %v", err)
@@ -64,7 +63,8 @@ func TestCreateChargeWithExplicitIdempotencyKey(t *testing.T) {
 	c := NewClient("", "k", WithBaseURL(srv.URL))
 	_, err := c.CreateCharge(context.Background(), CreateChargeRequest{
 		Product:        "orctago",
-		Amount:         money.New(100, money.GHS),
+		AmountPesewas:  100,
+		Currency:       "GHS",
 		Wallet:         "0241234567",
 		IdempotencyKey: "optd-orctago-hubtel-01CUSTOMKEY12345678901234",
 	})
@@ -118,8 +118,8 @@ func TestCreatePayout(t *testing.T) {
 	res, err := c.CreatePayout(context.Background(), CreatePayoutRequest{
 		Product: "orctago",
 		Entries: []PayoutEntry{
-			{Recipient: "0241111111", Amount: money.New(1000, money.GHS)},
-			{Recipient: "0242222222", Amount: money.New(1000, money.GHS)},
+			{Recipient: "0241111111", AmountPesewas: 1000, Currency: "GHS"},
+			{Recipient: "0242222222", AmountPesewas: 1000, Currency: "GHS"},
 		},
 	})
 	if err != nil {
@@ -149,9 +149,10 @@ func TestUnauthorized(t *testing.T) {
 
 	c := NewClient("", "bad", WithBaseURL(srv.URL))
 	_, err := c.CreateCharge(context.Background(), CreateChargeRequest{
-		Product: "orctago",
-		Amount:  money.New(100, money.GHS),
-		Wallet:  "0241234567",
+		Product:       "orctago",
+		AmountPesewas: 100,
+		Currency:      "GHS",
+		Wallet:        "0241234567",
 	})
 	if err == nil {
 		t.Fatal("want error")
@@ -239,9 +240,10 @@ func TestCreateChargeGatewayDeclineMapsToChargeFailed(t *testing.T) {
 
 	c := NewClient("", "k", WithBaseURL(srv.URL))
 	res, err := c.CreateCharge(context.Background(), CreateChargeRequest{
-		Product: "orctago",
-		Amount:  money.New(100, money.GHS),
-		Wallet:  "0241234567",
+		Product:       "orctago",
+		AmountPesewas: 100,
+		Currency:      "GHS",
+		Wallet:        "0241234567",
 	})
 	if err != nil {
 		t.Fatalf("CreateCharge: %v", err)
@@ -264,9 +266,10 @@ func TestServerErrorWrapsErrRequestFailed(t *testing.T) {
 
 	c := NewClient("", "k", WithBaseURL(srv.URL))
 	_, err := c.CreateCharge(context.Background(), CreateChargeRequest{
-		Product: "orctago",
-		Amount:  money.New(100, money.GHS),
-		Wallet:  "0241234567",
+		Product:       "orctago",
+		AmountPesewas: 100,
+		Currency:      "GHS",
+		Wallet:        "0241234567",
 	})
 	if err == nil {
 		t.Fatal("want error")
@@ -284,7 +287,7 @@ func TestServerErrorWrapsErrRequestFailed(t *testing.T) {
 	// And CreatePayout.
 	_, err = c.CreatePayout(context.Background(), CreatePayoutRequest{
 		Product: "orctago",
-		Entries: []PayoutEntry{{Recipient: "0241", Amount: money.New(100, money.GHS)}},
+		Entries: []PayoutEntry{{Recipient: "0241", AmountPesewas: 100, Currency: "GHS"}},
 	})
 	if !errors.Is(err, ErrRequestFailed) {
 		t.Fatalf("CreatePayout err = %v, want ErrRequestFailed", err)
@@ -304,9 +307,10 @@ func TestTimeout(t *testing.T) {
 	defer cancel()
 
 	_, err := c.CreateCharge(ctx, CreateChargeRequest{
-		Product: "orctago",
-		Amount:  money.New(100, money.GHS),
-		Wallet:  "0241234567",
+		Product:       "orctago",
+		AmountPesewas: 100,
+		Currency:      "GHS",
+		Wallet:        "0241234567",
 	})
 	if err == nil {
 		t.Fatal("want timeout error")
@@ -344,9 +348,10 @@ func TestCreateChargeUsesEnvFallback(t *testing.T) {
 	t.Setenv("ORCTA_PAY_URL", srv.URL)
 	c := NewClient("", "k")
 	_, err := c.CreateCharge(context.Background(), CreateChargeRequest{
-		Product: "orctago",
-		Amount:  money.New(100, money.GHS),
-		Wallet:  "0241234567",
+		Product:       "orctago",
+		AmountPesewas: 100,
+		Currency:      "GHS",
+		Wallet:        "0241234567",
 	})
 	if err != nil {
 		t.Fatalf("CreateCharge: %v", err)
