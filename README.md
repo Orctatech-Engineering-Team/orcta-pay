@@ -81,15 +81,11 @@ deploy/
 
 ## Deployment
 
-Pull-based through Orcta Runtime: push to `master` → CI publishes `ghcr.io/orctatech-engineering-team/orcta-pay:<sha>` → GHCR webhook → Orcta pulls and swaps traffic via Kamal Proxy blue/green. Serves `api.pay.orctatech.com`.
+Trunk-continuous via Orcta Runtime. See [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md) (canonical).
 
-Datastores live in a separate long-lived compose stack (`deploy/data/`), never in the app's compose file.
+`master` is the only deployable branch. `fix/*` → PR (5 required checks) → merge to `master` → `ghcr.io/...:<sha>` → GHCR `registry_package` webhook → Orcta pulls `deploy/app/docker-compose.yml` (`DEPLOY_SHA=<sha>`, `web` + Kamal blue/green, health `8085/healthz`), auto-rollback on fail. Caddy serves `api.pay.orctatech.com`.
 
-```
-deploy/
-  data/    docker-compose.yml + env.example   → /srv/apps/orcta-pay-data/
-  app/     docker-compose.yml                 → /srv/apps/orcta-pay/
-```
+Datastores are a separate long-lived stack (`deploy/data/` → `/srv/apps/orcta-pay-data/`), never in `deploy/app/`. See `DEPLOYMENT.md` §2 and `deploy/data/BACKUP.md` for backups (daily `pg_dump`, WAL archiving).
 
 Backups and point-in-time recovery are documented in [`deploy/data/BACKUP.md`](./deploy/data/BACKUP.md): nightly `pg_dump --format=custom` sidecar, WAL archiving (`wal_level=replica`, `archive_timeout=60`) for PITR, `BACKUP_S3_BUCKET` off-host sync, and the `down -v` guardrail (`deploy/data/scripts/guard.sh`, `task data:down`). Run `task data:down` (never `down -v`) on prod — it requires `ALLOW_DATA_LOSS=1`.
 
