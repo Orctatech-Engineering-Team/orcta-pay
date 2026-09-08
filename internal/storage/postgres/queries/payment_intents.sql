@@ -1,9 +1,9 @@
 -- name: CreatePaymentIntent :exec
-INSERT INTO payment_intents (ref, product, gateway, amount_pesewas, currency, wallet, idempotency_key, status, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now());
+INSERT INTO payment_intents (ref, product, gateway, amount_pesewas, currency, wallet, idempotency_key, status, authorization_url, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now());
 
 -- name: GetPaymentIntentByRef :one
-SELECT ref, product, gateway, amount_pesewas, currency, wallet, idempotency_key, status, created_at
+SELECT ref, product, gateway, amount_pesewas, currency, wallet, idempotency_key, status, authorization_url, created_at
 FROM payment_intents WHERE ref = $1;
 
 -- name: GetPaymentIntentByIdempotencyKey :one

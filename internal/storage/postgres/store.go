@@ -115,11 +115,11 @@ func (s *MemoryStore) ApplyChargeOutcome(_ context.Context, ref, status string, 
 }
 
 // CreateIntent persists a charge intent.
-func (s *MemoryStore) CreateIntent(_ context.Context, ref string, req charges.ChargeRequest, gw gateway.Gateway, _ money.Money) error {
+func (s *MemoryStore) CreateIntent(_ context.Context, ref string, req charges.ChargeRequest, gw gateway.Gateway, _ money.Money, authorizationURL string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.intents[ref] = intentRow{
-		pending: charges.ChargePending{Ref: ref, Gateway: gw, ExternalRef: ref},
+		pending: charges.ChargePending{Ref: ref, Gateway: gw, ExternalRef: ref, AuthorizationURL: authorizationURL},
 		status:  "pending",
 		product: req.Product,
 	}

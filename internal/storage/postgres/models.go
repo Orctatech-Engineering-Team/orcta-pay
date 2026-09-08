@@ -47,15 +47,16 @@ type LedgerEntry struct {
 }
 
 type PaymentIntent struct {
-	Ref            string      `db:"ref" json:"ref"`
-	Product        string      `db:"product" json:"product"`
-	Gateway        string      `db:"gateway" json:"gateway"`
-	AmountPesewas  int64       `db:"amount_pesewas" json:"amount_pesewas"`
-	Currency       string      `db:"currency" json:"currency"`
-	Wallet         pgtype.Text `db:"wallet" json:"wallet"`
-	IdempotencyKey pgtype.Text `db:"idempotency_key" json:"idempotency_key"`
-	Status         string      `db:"status" json:"status"`
-	CreatedAt      time.Time   `db:"created_at" json:"created_at"`
+	Ref              string      `db:"ref" json:"ref"`
+	Product          string      `db:"product" json:"product"`
+	Gateway          string      `db:"gateway" json:"gateway"`
+	AmountPesewas    int64       `db:"amount_pesewas" json:"amount_pesewas"`
+	Currency         string      `db:"currency" json:"currency"`
+	Wallet           pgtype.Text `db:"wallet" json:"wallet"`
+	IdempotencyKey   pgtype.Text `db:"idempotency_key" json:"idempotency_key"`
+	Status           string      `db:"status" json:"status"`
+	AuthorizationURL pgtype.Text `db:"authorization_url" json:"authorization_url"`
+	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
 }
 
 type PayoutBatch struct {

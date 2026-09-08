@@ -26,7 +26,7 @@ func handleListCharges(app *platform.App) http.HandlerFunc {
 		gateway := r.URL.Query().Get("gateway")
 		status := r.URL.Query().Get("status")
 
-		query := `SELECT ref, product, gateway, amount_pesewas, currency, status, created_at::text FROM payment_intents WHERE 1=1`
+		query := `SELECT ref, product, gateway, amount_pesewas, currency, status, authorization_url, created_at::text FROM payment_intents WHERE 1=1`
 		args := []any{}
 		idx := 1
 		if product != "" && product != "all" {
@@ -55,24 +55,27 @@ func handleListCharges(app *platform.App) http.HandlerFunc {
 		defer rows.Close()
 
 		type row struct {
-			Ref           string `json:"ref"`
-			Product       string `json:"product"`
-			Gateway       string `json:"gateway"`
-			AmountPesewas int64  `json:"amount_pesewas"`
-			Currency      string `json:"currency"`
-			Status        string `json:"status"`
-			CreatedAt     string `json:"created_at"`
+			Ref              string  `json:"ref"`
+			Product          string  `json:"product"`
+			Gateway          string  `json:"gateway"`
+			AmountPesewas    int64   `json:"amount_pesewas"`
+			Currency         string  `json:"currency"`
+			Status           string  `json:"status"`
+			AuthorizationURL *string `json:"authorization_url,omitempty"`
+			CreatedAt        string  `json:"created_at"`
 		}
 		out := []row{}
 		for rows.Next() {
 			var ref, productV, gatewayV, currencyV, statusV, createdAt string
+			var authURL *string
 			var amount int64
-			if err := rows.Scan(&ref, &productV, &gatewayV, &amount, &currencyV, &statusV, &createdAt); err != nil {
+			if err := rows.Scan(&ref, &productV, &gatewayV, &amount, &currencyV, &statusV, &authURL, &createdAt); err != nil {
 				continue
 			}
 			out = append(out, row{
 				Ref: ref, Product: productV, Gateway: gatewayV,
 				AmountPesewas: amount, Currency: currencyV, Status: statusV,
+				AuthorizationURL: authURL,
 				CreatedAt: createdAt,
 			})
 		}

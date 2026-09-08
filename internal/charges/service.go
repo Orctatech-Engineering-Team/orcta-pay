@@ -56,7 +56,7 @@ func (ChargeFailed) isChargeResult()    {}
 
 // IntentStore is the persistence seam.
 type IntentStore interface {
-	CreateIntent(ctx context.Context, ref string, req ChargeRequest, gateway gateway.Gateway, amount money.Money) error
+	CreateIntent(ctx context.Context, ref string, req ChargeRequest, gateway gateway.Gateway, amount money.Money, authorizationURL string) error
 	FindByRef(ctx context.Context, ref string) (ChargePending, error)
 	FindByIdempotencyKey(ctx context.Context, product, key string) (string, bool, error)
 	UpdateStatus(ctx context.Context, ref string, status string) error
@@ -126,7 +126,7 @@ func (s *Service) Initiate(ctx context.Context, req ChargeRequest) (ChargeResult
 		if errors.Is(err, gateway.ErrNotConfigured) {
 			chosen = ordered[0]
 			// Persist intent so it remains findable for reconciliation.
-			_ = s.store.CreateIntent(ctx, baseRef, req, chosen, req.Amount)
+			_ = s.store.CreateIntent(ctx, baseRef, req, chosen, req.Amount, "")
 			if ow, ok := s.store.(outboxWriter); ok {
 				_ = ow.InsertOutboxEvent(ctx, baseRef, chosen)
 			}
@@ -141,7 +141,7 @@ func (s *Service) Initiate(ctx context.Context, req ChargeRequest) (ChargeResult
 	if prod, g, parsedULID, ok := gateway.ParseReference(baseRef); ok && g != chosen {
 		actualRef = gateway.BuildReference(prod, chosen, parsedULID)
 	}
-	if err := s.store.CreateIntent(ctx, actualRef, req, chosen, req.Amount); err != nil {
+	if err := s.store.CreateIntent(ctx, actualRef, req, chosen, req.Amount, resp.AuthorizationURL); err != nil {
 		return nil, fmt.Errorf("charges: create intent: %w", err)
 	}
 	if ow, ok := s.store.(outboxWriter); ok {
