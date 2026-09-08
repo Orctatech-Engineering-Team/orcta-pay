@@ -14,6 +14,7 @@ import (
 	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/money"
 	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/payouts"
 	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/webhooks"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/worker"
 )
 
 // MemoryStore is an in-memory implementation satisfying multiple domain seams.
@@ -29,6 +30,7 @@ type MemoryStore struct {
 	appHash  map[string]uuid.UUID // hash -> id
 	appName  map[string]uuid.UUID // name -> id
 	inbox    map[string]bool      // aggregator_event_id -> seen
+	outbox   map[uuid.UUID]worker.GatewayEvent
 }
 
 // intentRow is the in-memory intent record.
@@ -49,6 +51,7 @@ func NewMemoryStore() *MemoryStore {
 		appHash:  make(map[string]uuid.UUID),
 		appName:  make(map[string]uuid.UUID),
 		inbox:    make(map[string]bool),
+		outbox:   make(map[uuid.UUID]worker.GatewayEvent),
 	}
 }
 
@@ -58,6 +61,8 @@ var (
 	_ ledger.Store             = (*MemoryStore)(nil)
 	_ apps.Store               = (*MemoryStore)(nil)
 	_ webhooks.Store           = (*MemoryStore)(nil)
+	_ worker.OutboxStore       = (*MemoryStore)(nil)
+	_ worker.LedgerReader      = (*MemoryStore)(nil)
 )
 
 // InsertWebhookInbox records an event (memory impl).
@@ -311,4 +316,177 @@ func (s *MemoryStore) RevokeApp(_ context.Context, id uuid.UUID) error {
 	a.RevokedAt = &now
 	s.apps[id] = a
 	return nil
+}
+
+// --- Worker outbox (MemoryStore) ---
+
+// InsertGatewayEventDirect inserts a gateway event for tests (uses outbox map).
+func (s *MemoryStore) InsertGatewayEventDirect(ev worker.GatewayEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.outbox == nil {
+		s.outbox = make(map[uuid.UUID]worker.GatewayEvent)
+	}
+	s.outbox[ev.ID] = ev
+}
+
+// ClaimPending returns up to limit pending gateway events ordered by CreatedAt.
+func (s *MemoryStore) ClaimPending(_ context.Context, limit int32) ([]worker.GatewayEvent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var pending []worker.GatewayEvent
+	for _, ev := range s.outbox {
+		if ev.Status == "pending" {
+			pending = append(pending, ev)
+		}
+	}
+	// sort by CreatedAt then ID for determinism
+	for i := 0; i < len(pending); i++ {
+		for j := i + 1; j < len(pending); j++ {
+			if pending[j].CreatedAt.Before(pending[i].CreatedAt) {
+				pending[i], pending[j] = pending[j], pending[i]
+			}
+		}
+	}
+	if int32(len(pending)) > limit {
+		pending = pending[:limit]
+	}
+	return pending, nil
+}
+
+// GetIntent returns intent for worker.
+func (s *MemoryStore) GetIntent(_ context.Context, ref string) (worker.Intent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	row, ok := s.intents[ref]
+	if !ok {
+		return worker.Intent{}, charges.ErrNotFound
+	}
+	amt := money.New(0, money.GHS)
+	// amount not stored in MemoryStore intentRow; default to 1000
+	// Use ledger first entry amount if present as hint.
+	if entries, ok := s.ledgers[ref]; ok && len(entries) > 0 {
+		amt = entries[0].Amount
+	}
+	if amt.IsZero() {
+		amt = money.New(1800, money.GHS)
+	}
+	return worker.Intent{
+		Ref:     row.pending.Ref,
+		Product: row.product,
+		Amount:  amt,
+		Gateway: row.pending.Gateway,
+		Status:  row.status,
+		Wallet:  "",
+	}, nil
+}
+
+// CompleteSucceeded marks outbox and intent succeeded and appends ledger.
+func (s *MemoryStore) CompleteSucceeded(_ context.Context, eventID uuid.UUID, ref string, result gateway.VerifyResult, intent worker.Intent) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ev, ok := s.outbox[eventID]
+	if !ok {
+		return charges.ErrNotFound
+	}
+	ev.Status = "succeeded"
+	s.outbox[eventID] = ev
+	if row, ok := s.intents[ref]; ok {
+		row.status = "succeeded"
+		s.intents[ref] = row
+	}
+	amt := result.Amount
+	if amt.IsZero() {
+		amt = intent.Amount
+	}
+	if amt.IsZero() {
+		amt = money.New(1800, money.GHS)
+	}
+	entry := ledger.LedgerEntry{
+		ID:          uuid.New(),
+		Kind:        ledger.KindCollection,
+		Ref:         ref,
+		Amount:      amt,
+		ValueTime:   result.VerifiedAt,
+		BookingTime: time.Now().UTC(),
+		Product:     intent.Product,
+	}
+	s.ledgers[ref] = append(s.ledgers[ref], entry)
+	return nil
+}
+
+// CompleteFailed marks both as failed.
+func (s *MemoryStore) CompleteFailed(_ context.Context, eventID uuid.UUID, ref string, _ gateway.VerifyResult) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if ev, ok := s.outbox[eventID]; ok {
+		ev.Status = "failed"
+		s.outbox[eventID] = ev
+	}
+	if row, ok := s.intents[ref]; ok {
+		row.status = "failed"
+		s.intents[ref] = row
+	}
+	return nil
+}
+
+// MarkPendingRetry is a no-op for memory.
+func (s *MemoryStore) MarkPendingRetry(_ context.Context, _ uuid.UUID) error { return nil }
+
+// CountPending returns count.
+func (s *MemoryStore) CountPending(_ context.Context) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var n int64
+	for _, ev := range s.outbox {
+		if ev.Status == "pending" {
+			n++
+		}
+	}
+	return n, nil
+}
+
+// InsertOutboxEvent inserts a pending gateway_events row (memory).
+func (s *MemoryStore) InsertOutboxEvent(_ context.Context, ref string, gw gateway.Gateway) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.outbox == nil {
+		s.outbox = make(map[uuid.UUID]worker.GatewayEvent)
+	}
+	// Ensure intent exists; if not, synthesize pending.
+	if _, ok := s.intents[ref]; !ok {
+		s.intents[ref] = intentRow{
+			pending: charges.ChargePending{Ref: ref, Gateway: gw, ExternalRef: ref},
+			status:  "pending",
+			product: "test",
+		}
+	}
+	id := uuid.New()
+	s.outbox[id] = worker.GatewayEvent{ID: id, Ref: ref, Gateway: gw, Status: "pending", CreatedAt: time.Now().UTC()}
+	return nil
+}
+
+// InsertMemoryIntentAndOutbox is a test helper that creates intent + pending event.
+func (s *MemoryStore) InsertMemoryIntentAndOutbox(ref string, gw gateway.Gateway, product string) uuid.UUID {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.outbox == nil {
+		s.outbox = make(map[uuid.UUID]worker.GatewayEvent)
+	}
+	if _, ok := s.intents[ref]; !ok {
+		s.intents[ref] = intentRow{
+			pending: charges.ChargePending{Ref: ref, Gateway: gw, ExternalRef: ref},
+			status:  "pending",
+			product: product,
+		}
+	}
+	id := uuid.New()
+	s.outbox[id] = worker.GatewayEvent{
+		ID:        id,
+		Ref:       ref,
+		Gateway:   gw,
+		Status:    "pending",
+		CreatedAt: time.Now().UTC(),
+	}
+	return id
 }

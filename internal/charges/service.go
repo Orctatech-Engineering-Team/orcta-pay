@@ -62,6 +62,13 @@ type IntentStore interface {
 	UpdateStatus(ctx context.Context, ref string, status string) error
 }
 
+// outboxWriter is an optional seam for the transactional outbox. Stores that
+// implement it (PostgresStore, MemoryStore) will have a pending gateway_events
+// row inserted alongside the intent so the worker can later Verify/Settle.
+type outboxWriter interface {
+	InsertOutboxEvent(ctx context.Context, ref string, gw gateway.Gateway) error
+}
+
 // Service orchestrates charges.
 type Service struct {
 	store  IntentStore
@@ -120,6 +127,9 @@ func (s *Service) Initiate(ctx context.Context, req ChargeRequest) (ChargeResult
 			chosen = ordered[0]
 			// Persist intent so it remains findable for reconciliation.
 			_ = s.store.CreateIntent(ctx, baseRef, req, chosen, req.Amount)
+			if ow, ok := s.store.(outboxWriter); ok {
+				_ = ow.InsertOutboxEvent(ctx, baseRef, chosen)
+			}
 			observability.LoggerFromContext(ctx).InfoContext(ctx, "gateway not configured", "gateway", chosen)
 			observability.SetEventField(ctx, "charge_ref", baseRef)
 			return ChargePending{Ref: baseRef, Gateway: chosen, ExternalRef: baseRef}, nil
@@ -133,6 +143,11 @@ func (s *Service) Initiate(ctx context.Context, req ChargeRequest) (ChargeResult
 	}
 	if err := s.store.CreateIntent(ctx, actualRef, req, chosen, req.Amount); err != nil {
 		return nil, fmt.Errorf("charges: create intent: %w", err)
+	}
+	if ow, ok := s.store.(outboxWriter); ok {
+		if err := ow.InsertOutboxEvent(ctx, actualRef, chosen); err != nil {
+			observability.LoggerFromContext(ctx).WarnContext(ctx, "charges: outbox insert failed", "ref", actualRef, "error", err)
+		}
 	}
 	observability.SetEventField(ctx, "charge_ref", actualRef)
 	return ChargePending{Ref: actualRef, Gateway: chosen, ExternalRef: resp.ExternalRef, AuthorizationURL: resp.AuthorizationURL}, nil

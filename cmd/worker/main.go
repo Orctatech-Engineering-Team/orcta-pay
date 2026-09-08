@@ -10,6 +10,7 @@ import (
 
 	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/config"
 	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/platform"
+	"github.com/Orctatech-Engineering-Team/orcta-pay/internal/worker"
 )
 
 func main() {
@@ -50,13 +51,39 @@ func run() error {
 	}
 }
 
+func buildWorker(app *platform.App) *worker.Worker {
+	var store worker.OutboxStore
+	var ledger worker.LedgerReader
+	if app.PgStore != nil {
+		store = app.PgStore
+		ledger = app.PgStore
+	} else if app.MemStore != nil {
+		store = app.MemStore
+		ledger = app.MemStore
+	} else {
+		return nil
+	}
+	return worker.New(store, ledger, app.Router, app.Locker, app.Observ.Logger)
+}
+
 func drainOutbox(ctx context.Context, app *platform.App) {
-	// Real: SELECT FOR UPDATE SKIP LOCKED from gateway_events where status pending,
-	// then Initiate/Verify with Valkey SETNX guard.
-	app.Observ.Logger.InfoContext(ctx, "outbox drain tick")
+	w := buildWorker(app)
+	if w == nil {
+		app.Observ.Logger.WarnContext(ctx, "worker outbox skipped: no store")
+		return
+	}
+	if _, err := w.DrainOutbox(ctx); err != nil {
+		app.Observ.Logger.ErrorContext(ctx, "outbox drain failed", "error", err)
+	}
 }
 
 func reconcile(ctx context.Context, app *platform.App) {
-	// Real: daily diff aggregator statements vs ledger_entries; mismatches alert.
-	app.Observ.Logger.InfoContext(ctx, "reconciliation tick")
+	w := buildWorker(app)
+	if w == nil {
+		app.Observ.Logger.WarnContext(ctx, "reconciliation skipped: no store")
+		return
+	}
+	if err := w.Reconcile(ctx); err != nil {
+		app.Observ.Logger.ErrorContext(ctx, "reconciliation failed", "error", err)
+	}
 }
