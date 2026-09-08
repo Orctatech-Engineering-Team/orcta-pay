@@ -14,6 +14,12 @@ import (
 type HealthStore interface {
 	SuccessRate(ctx context.Context, gateway Gateway) (float64, error)
 	IsCircuitOpen(ctx context.Context, gateway Gateway) (bool, error)
+	P95Latency(ctx context.Context, gateway Gateway) (int, error)
+}
+
+// LatencyRecorder records per-gateway latency samples for p95 calculation.
+type LatencyRecorder interface {
+	RecordLatency(ctx context.Context, gw Gateway, latency time.Duration) error
 }
 
 // ChargerRouter selects the gateway to try first, ranking by Valkey metrics.
@@ -81,9 +87,10 @@ func (r *ChargerRouter) InitiateWithFallback(ctx context.Context, req InitiateRe
 		}
 		start := time.Now()
 		resp, err := adapter.Initiate(ctx, attemptReq)
-		duration := time.Since(start).Seconds()
+		elapsed := time.Since(start)
+		duration := elapsed.Seconds()
 		if err == nil {
-			r.RecordResult(ctx, g, true)
+			r.RecordResult(ctx, g, true, elapsed)
 			observability.ObserveGatewayDuration(string(g), true, duration)
 			return resp, g, nil
 		}
@@ -91,7 +98,7 @@ func (r *ChargerRouter) InitiateWithFallback(ctx context.Context, req InitiateRe
 			lastErr = err
 			continue
 		}
-		r.RecordResult(ctx, g, false)
+		r.RecordResult(ctx, g, false, elapsed)
 		observability.ObserveGatewayDuration(string(g), false, duration)
 		lastErr = fmt.Errorf("gateway %s: %w", g, err)
 	}
@@ -109,12 +116,18 @@ func (r *ChargerRouter) Adapter(g Gateway) (AggregatorClient, bool) {
 
 // RecordResult forwards an outcome to the health store when one is wired.
 // Never fatal: health tracking must not break charge processing.
-func (r *ChargerRouter) RecordResult(ctx context.Context, g Gateway, success bool) {
+// Optional latency is recorded as a p95 sample when the health store implements LatencyRecorder.
+func (r *ChargerRouter) RecordResult(ctx context.Context, g Gateway, success bool, latency ...time.Duration) {
 	observability.ObserveGatewayResult(string(g), success)
 	if r.health == nil {
 		return
 	}
 	if rec, ok := r.health.(ResultRecorder); ok {
 		_ = rec.RecordResult(ctx, g, success)
+	}
+	if len(latency) > 0 && latency[0] > 0 {
+		if lr, ok := r.health.(LatencyRecorder); ok {
+			_ = lr.RecordLatency(ctx, g, latency[0])
+		}
 	}
 }
