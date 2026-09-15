@@ -190,7 +190,9 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=sha,prefix=,format=long
+            # Orcta Runtime expects the canonical short 7-char SHA. Publish
+            # one tag so registry_package produces one deploy event.
+            type=sha,prefix=,format=short
 
       - name: Build and push
         uses: docker/build-push-action@v5
