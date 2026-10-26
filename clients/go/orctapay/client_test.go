@@ -1,6 +1,7 @@
 package orctapay
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -48,6 +49,48 @@ func TestCreateChargeSuccess(t *testing.T) {
 	}
 	if pending.Ref == "" || pending.Gateway == "" {
 		t.Fatalf("pending = %+v, want ref and gateway", pending)
+	}
+}
+
+func TestCreateObservedChargeRetainsExactReply(t *testing.T) {
+	body := []byte(`{"ref":"charge-1","gateway":"paystack","status":"pending","external_ref":"checkout-1"}`)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write(body)
+	}))
+	defer srv.Close()
+
+	c := NewClient("", "k", WithBaseURL(srv.URL))
+	observed, err := c.CreateObservedCharge(t.Context(), CreateChargeRequest{
+		Product: "orctago", AmountPesewas: 100, Wallet: "0241234567",
+	})
+	if err != nil {
+		t.Fatalf("CreateObservedCharge: %v", err)
+	}
+	if !bytes.Equal(observed.Response, body) {
+		t.Fatalf("response = %q, want exact body %q", observed.Response, body)
+	}
+	if _, ok := observed.Result.(ChargePending); !ok {
+		t.Fatalf("result type = %T, want ChargePending", observed.Result)
+	}
+}
+
+func TestCreateObservedChargeRejectsOversizedReply(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(strings.Repeat("x", MaxChargeResponseBytes+1)))
+	}))
+	defer srv.Close()
+
+	c := NewClient("", "k", WithBaseURL(srv.URL))
+	observed, err := c.CreateObservedCharge(t.Context(), CreateChargeRequest{
+		Product: "orctago", AmountPesewas: 100, Wallet: "0241234567",
+	})
+	if !errors.Is(err, ErrChargeResponseTooLarge) {
+		t.Fatalf("error = %v, want ErrChargeResponseTooLarge", err)
+	}
+	if observed.Result != nil || len(observed.Response) != 0 {
+		t.Fatalf("observed = %+v, want no retained partial response", observed)
 	}
 }
 

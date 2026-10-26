@@ -29,7 +29,12 @@ var (
 	ErrUnauthorized   = errors.New("orctapay: unauthorized")
 	ErrNotFound       = errors.New("orctapay: not found")
 	ErrInvalidRequest = errors.New("orctapay: invalid request")
+	// ErrChargeResponseTooLarge reports a charge reply that cannot be safely retained.
+	ErrChargeResponseTooLarge = errors.New("orctapay: charge response too large")
 )
+
+// MaxChargeResponseBytes is the largest raw charge reply CreateObservedCharge returns.
+const MaxChargeResponseBytes = 64 << 10
 
 // APIError carries the API error envelope details for a non-2xx response.
 type APIError struct {
@@ -107,6 +112,12 @@ type CreateChargeRequest struct {
 
 // ChargeResult is the sealed result of a charge.
 type ChargeResult interface{ isChargeResult() }
+
+// ObservedCharge is a parsed charge result with its exact provider reply.
+type ObservedCharge struct {
+	Result   ChargeResult
+	Response []byte
+}
 
 // ChargeSucceeded indicates the charge settled.
 type ChargeSucceeded struct {
@@ -255,6 +266,19 @@ func (c *Client) RevokeApp(ctx context.Context, appID string) error {
 
 // CreateCharge initiates a charge.
 func (c *Client) CreateCharge(ctx context.Context, req CreateChargeRequest) (ChargeResult, error) {
+	observed, err := c.createCharge(ctx, req, 0)
+	if err != nil {
+		return nil, err
+	}
+	return observed.Result, nil
+}
+
+// CreateObservedCharge initiates a charge and retains its bounded raw reply.
+func (c *Client) CreateObservedCharge(ctx context.Context, req CreateChargeRequest) (ObservedCharge, error) {
+	return c.createCharge(ctx, req, MaxChargeResponseBytes)
+}
+
+func (c *Client) createCharge(ctx context.Context, req CreateChargeRequest, maxResponseBytes int64) (ObservedCharge, error) {
 	key := req.IdempotencyKey
 	if key == "" {
 		product := req.Product
@@ -287,31 +311,35 @@ func (c *Client) CreateCharge(ctx context.Context, req CreateChargeRequest) (Cha
 		body["metadata"] = req.Metadata
 	}
 
-	var resp chargeWire
-	if err := c.doJSON(ctx, http.MethodPost, "/v1/charges", body, &resp); err != nil {
+	data, err := c.doJSONBytes(ctx, http.MethodPost, "/v1/charges", body, maxResponseBytes)
+	if err != nil {
 		// The service reports synchronous charge failure as 502 with code
 		// "unavailable" and the gateway decline reason in the message. Surface
 		// it as ChargeFailed rather than a transport error.
 		var apiErr *APIError
 		if errors.As(err, &apiErr) && apiErr.Code == "unavailable" {
-			return ChargeFailed{Reason: apiErr.Message}, nil
+			return ObservedCharge{Result: ChargeFailed{Reason: apiErr.Message}, Response: data}, nil
 		}
-		return nil, err
+		return ObservedCharge{Response: data}, err
+	}
+	var resp chargeWire
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return ObservedCharge{Response: data}, fmt.Errorf("orctapay: decode: %w", err)
 	}
 	// Map to sealed result based on status.
 	switch resp.Status {
 	case "pending":
-		return ChargePending{Ref: resp.Ref, Gateway: resp.Gateway, ExternalRef: resp.ExternalRef}, nil
+		return ObservedCharge{Result: ChargePending{Ref: resp.Ref, Gateway: resp.Gateway, ExternalRef: resp.ExternalRef}, Response: data}, nil
 	case "succeeded":
-		return ChargeSucceeded{Ref: resp.Ref, Gateway: resp.Gateway, AmountPesewas: resp.AmountPesewas, Currency: resp.Currency, ExternalRef: resp.ExternalRef}, nil
+		return ObservedCharge{Result: ChargeSucceeded{Ref: resp.Ref, Gateway: resp.Gateway, AmountPesewas: resp.AmountPesewas, Currency: resp.Currency, ExternalRef: resp.ExternalRef}, Response: data}, nil
 	case "failed":
-		return ChargeFailed{Reason: resp.Status}, nil
+		return ObservedCharge{Result: ChargeFailed{Reason: resp.Status}, Response: data}, nil
 	default:
 		// Unknown status mapped to pending to preserve forward compatibility.
 		if resp.Ref != "" {
-			return ChargePending{Ref: resp.Ref, Gateway: resp.Gateway, ExternalRef: resp.ExternalRef}, nil
+			return ObservedCharge{Result: ChargePending{Ref: resp.Ref, Gateway: resp.Gateway, ExternalRef: resp.ExternalRef}, Response: data}, nil
 		}
-		return ChargeFailed{Reason: "unknown status: " + resp.Status}, nil
+		return ObservedCharge{Result: ChargeFailed{Reason: "unknown status: " + resp.Status}, Response: data}, nil
 	}
 }
 
@@ -374,18 +402,31 @@ type chargeWire struct {
 }
 
 func (c *Client) doJSON(ctx context.Context, method, path string, body any, out any) error {
+	data, err := c.doJSONBytes(ctx, method, path, body, 0)
+	if err != nil {
+		return err
+	}
+	if out != nil && len(data) > 0 {
+		if err := json.Unmarshal(data, out); err != nil {
+			return fmt.Errorf("orctapay: decode: %w", err)
+		}
+	}
+	return nil
+}
+
+func (c *Client) doJSONBytes(ctx context.Context, method, path string, body any, maxBytes int64) ([]byte, error) {
 	var bodyReader io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
-			return fmt.Errorf("orctapay: marshal: %w", err)
+			return nil, fmt.Errorf("orctapay: marshal: %w", err)
 		}
 		bodyReader = bytes.NewReader(b)
 	}
 	url := c.baseURL + path
 	req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)
 	if err != nil {
-		return fmt.Errorf("orctapay: new request: %w", err)
+		return nil, fmt.Errorf("orctapay: new request: %w", err)
 	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -397,25 +438,27 @@ func (c *Client) doJSON(ctx context.Context, method, path string, body any, out 
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("orctapay: do: %w", err)
+		return nil, fmt.Errorf("orctapay: do: %w", err)
 	}
 	defer func() {
 		_, _ = io.Copy(io.Discard, resp.Body)
 		_ = resp.Body.Close()
 	}()
 
-	data, err := io.ReadAll(resp.Body)
+	reader := io.Reader(resp.Body)
+	if maxBytes > 0 {
+		reader = io.LimitReader(resp.Body, maxBytes+1)
+	}
+	data, err := io.ReadAll(reader)
 	if err != nil {
-		return fmt.Errorf("orctapay: read: %w", err)
+		return nil, fmt.Errorf("orctapay: read: %w", err)
+	}
+	if maxBytes > 0 && int64(len(data)) > maxBytes {
+		return nil, ErrChargeResponseTooLarge
 	}
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		if out != nil && len(data) > 0 {
-			if err := json.Unmarshal(data, out); err != nil {
-				return fmt.Errorf("orctapay: decode: %w", err)
-			}
-		}
-		return nil
+		return data, nil
 	}
 
 	// Decode error envelope if present.
@@ -452,15 +495,15 @@ func (c *Client) doJSON(ctx context.Context, method, path string, body any, out 
 
 	switch {
 	case resp.StatusCode == http.StatusUnauthorized:
-		return errors.Join(ErrUnauthorized, apiErr)
+		return data, errors.Join(ErrUnauthorized, apiErr)
 	case resp.StatusCode == http.StatusNotFound:
-		return errors.Join(ErrNotFound, apiErr)
+		return data, errors.Join(ErrNotFound, apiErr)
 	case resp.StatusCode == http.StatusBadRequest:
-		return errors.Join(ErrInvalidRequest, apiErr)
+		return data, errors.Join(ErrInvalidRequest, apiErr)
 	case resp.StatusCode >= 500:
-		return errors.Join(ErrRequestFailed, apiErr)
+		return data, errors.Join(ErrRequestFailed, apiErr)
 	default:
-		return apiErr
+		return data, apiErr
 	}
 }
 
